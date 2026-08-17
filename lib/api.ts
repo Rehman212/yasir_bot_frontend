@@ -1,0 +1,365 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+
+export type AuthTokens = {
+  accessToken: string;
+  refreshToken: string;
+};
+
+const ACCESS_KEY = "yr_access_token";
+const REFRESH_KEY = "yr_refresh_token";
+const USER_KEY = "yr_user";
+
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ACCESS_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REFRESH_KEY);
+}
+
+export function getStoredUser<T = Record<string, unknown>>(): T | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function setSession(
+  tokens: AuthTokens,
+  user?: Record<string, unknown> | null,
+) {
+  localStorage.setItem(ACCESS_KEY, tokens.accessToken);
+  localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function clearSession() {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(message: string, status: number, body?: unknown) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  if (!res.ok) {
+    clearSession();
+    return null;
+  }
+
+  const json = await res.json();
+  const data = json.data ?? json;
+  if (data.accessToken && data.refreshToken) {
+    setSession(
+      { accessToken: data.accessToken, refreshToken: data.refreshToken },
+      data.user,
+    );
+    return data.accessToken as string;
+  }
+  return null;
+}
+
+type RequestOptions = {
+  method?: string;
+  body?: unknown;
+  auth?: boolean;
+  formData?: FormData;
+};
+
+export async function api<T = unknown>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> {
+  const { method = "GET", body, auth = true, formData } = options;
+  const headers: Record<string, string> = {};
+
+  if (!formData) headers["Content-Type"] = "application/json";
+
+  let token = getAccessToken();
+  if (auth && token) headers.Authorization = `Bearer ${token}`;
+
+  const doFetch = () =>
+    fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      body: formData ? formData : body !== undefined ? JSON.stringify(body) : undefined,
+    });
+
+  let res = await doFetch();
+
+  if (res.status === 401 && auth) {
+    token = await refreshAccessToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      res = await doFetch();
+    }
+  }
+
+  const text = await res.text();
+  let json: unknown = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = text;
+    }
+  }
+
+  if (!res.ok) {
+    const message =
+      (json as { message?: string | string[] })?.message ||
+      res.statusText ||
+      "Request failed";
+    throw new ApiError(
+      Array.isArray(message) ? message.join(", ") : String(message),
+      res.status,
+      json,
+    );
+  }
+
+  return json as T;
+}
+
+export const authApi = {
+  signup: (data: {
+    name: string;
+    email: string;
+    password: string;
+  }) => api<{ data: { user: Record<string, unknown> } & AuthTokens }>("/auth/signup", {
+    method: "POST",
+    body: data,
+    auth: false,
+  }),
+  login: (data: { email: string; password: string }) =>
+    api<{ data: { user: Record<string, unknown> } & AuthTokens }>("/auth/login", {
+      method: "POST",
+      body: data,
+      auth: false,
+    }),
+  logout: () =>
+    api("/auth/logout", {
+      method: "POST",
+      body: { refreshToken: getRefreshToken() },
+    }).finally(() => clearSession()),
+  forgotPassword: (email: string) =>
+    api("/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+      auth: false,
+    }),
+  resetPassword: (token: string, password: string) =>
+    api("/auth/reset-password", {
+      method: "POST",
+      body: { token, password },
+      auth: false,
+    }),
+  verifyEmail: (token: string) =>
+    api("/auth/verify-email", {
+      method: "POST",
+      body: { token },
+      auth: false,
+    }),
+};
+
+export const dashboardApi = {
+  stats: () => api<{ data: DashboardStats }>("/dashboard/stats"),
+};
+
+export const sitesApi = {
+  list: () => api<{ data: WpSite[] }>("/wordpress-sites"),
+  get: (id: string) => api<{ data: WpSite }>(`/wordpress-sites/${id}`),
+  create: (body: {
+    name: string;
+    url: string;
+    username: string;
+    applicationPassword: string;
+  }) =>
+    api<{ data: WpSite }>("/wordpress-sites", { method: "POST", body }),
+  update: (
+    id: string,
+    body: Partial<{
+      name: string;
+      url: string;
+      username: string;
+      applicationPassword: string;
+    }>,
+  ) =>
+    api<{ data: WpSite }>(`/wordpress-sites/${id}`, {
+      method: "PATCH",
+      body,
+    }),
+  test: (id: string) =>
+    api<{ data: { connected?: boolean; site?: WpSite; info?: unknown } & Partial<WpSite> }>(
+      `/wordpress-sites/${id}/test-connection`,
+      { method: "POST" },
+    ),
+  remove: (id: string) =>
+    api(`/wordpress-sites/${id}`, { method: "DELETE" }),
+};
+
+export const articlesApi = {
+  list: (query?: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v) qs.set(k, v);
+      });
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{ data: ArticleDetail[] }>(`/articles${suffix}`);
+  },
+  get: (id: string) => api<{ data: ArticleDetail }>(`/articles/${id}`),
+  update: (
+    id: string,
+    body: Partial<{
+      title: string;
+      content: string;
+      excerpt: string;
+      slug: string;
+      status: string;
+      category: string;
+      tags: string[];
+      featuredImageUrl: string;
+      seoTitle: string;
+      seoDescription: string;
+      focusKeyword: string;
+      publishAt: string;
+    }>,
+  ) => api<{ data: ArticleDetail }>(`/articles/${id}`, { method: "PATCH", body }),
+  remove: (id: string) => api(`/articles/${id}`, { method: "DELETE" }),
+};
+
+export const importsApi = {
+  upload: (siteId: string, file: File, columnMapping?: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("siteId", siteId);
+    if (columnMapping) {
+      formData.append("columnMapping", JSON.stringify(columnMapping));
+    }
+    return api<{
+      data: {
+        batch: { id: string; filename?: string | null; rowCount: number; status: string };
+        imported: number;
+        errors: Array<{ row: number; message: string }>;
+      };
+    }>(`/imports/upload?siteId=${encodeURIComponent(siteId)}`, {
+      method: "POST",
+      formData,
+    });
+  },
+  history: () =>
+    api<{
+      data: Array<{
+        id: string;
+        filename?: string | null;
+        rowCount: number;
+        status: string;
+        createdAt: string;
+      }>;
+    }>("/imports/history"),
+};
+
+export const queueApi = {
+  list: () => api<{ data: QueueRow[] }>("/queue"),
+  pause: () => api("/queue/pause", { method: "POST" }),
+  resume: () => api("/queue/resume", { method: "POST" }),
+  retry: (id: string) => api(`/queue/${id}/retry`, { method: "POST" }),
+  cancel: (id: string) => api(`/queue/${id}/cancel`, { method: "POST" }),
+};
+
+export const publishingApi = {
+  draft: (articleId: string) =>
+    api("/publishing/draft", { method: "POST", body: { articleId } }),
+  publish: (articleId: string) =>
+    api("/publishing/publish", { method: "POST", body: { articleId } }),
+  schedule: (articleId: string, publishAt: string, timezone = "UTC") =>
+    api("/publishing/schedule", {
+      method: "POST",
+      body: { articleId, publishAt, timezone },
+    }),
+};
+
+export type WpSite = {
+  id: string;
+  name: string;
+  url: string;
+  username?: string;
+  status: string;
+  publishedCount: number;
+  lastConnectedAt?: string | null;
+};
+
+export type ArticleRow = {
+  id: string;
+  title: string;
+  status: string;
+  category?: string | null;
+  publishAt?: string | null;
+  wpUrl?: string | null;
+  site?: { id?: string; name: string; url?: string };
+};
+
+export type ArticleDetail = ArticleRow & {
+  content?: string;
+  excerpt?: string | null;
+  slug?: string | null;
+  tags?: string[];
+  featuredImageUrl?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  focusKeyword?: string | null;
+  siteId?: string;
+  errorMessage?: string | null;
+};
+
+export type QueueRow = {
+  id: string;
+  status: string;
+  progress: number;
+  error?: string | null;
+  article?: { title: string };
+  site?: { name: string };
+};
+
+export type DashboardStats = {
+  stats: { label: string; value: string }[];
+  recentImports: { id: string; label: string; status: string }[];
+  upcoming: {
+    id: string;
+    title: string;
+    publishDate?: string | null;
+    website: string;
+  }[];
+  recentActivity: {
+    id: string;
+    event: string;
+    detail: string;
+    time: string;
+  }[];
+  failedCount: number;
+};
