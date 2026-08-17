@@ -16,6 +16,7 @@ import {
   type ArticleRow,
   type WpSite,
 } from "@/lib/api";
+import { DownloadSampleSheetButton } from "@/components/download-sample-sheet-button";
 
 const steps = [
   "Select website",
@@ -129,13 +130,16 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
-          Import Articles
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Upload Excel or CSV and create draft articles for your WordPress site.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
+            Import Articles
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Upload Excel or CSV and create draft articles for your WordPress site.
+          </p>
+        </div>
+        <DownloadSampleSheetButton label="Download sample sheet" />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -191,9 +195,12 @@ export default function ImportPage() {
               accept=".csv,.xlsx,.xls"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
-            <p className="text-sm text-muted">
-              Use the sample sheet headers for best auto-mapping.
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <DownloadSampleSheetButton />
+              <p className="text-sm text-muted">
+                Includes Focus Keyword, LSI Keywords, SEO Title, Meta Description.
+              </p>
+            </div>
           </div>
         )}
 

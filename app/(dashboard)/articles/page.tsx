@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Card, StatusBadge } from "@/components/ui/primitives";
 import {
+  ApiError,
   articlesApi,
   sitesApi,
   type ArticleRow,
@@ -25,7 +26,10 @@ export default function ArticlesPage() {
   const [siteId, setSiteId] = useState("");
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   async function load() {
     try {
@@ -35,6 +39,7 @@ export default function ArticlesPage() {
         search: search || undefined,
       });
       setArticles(res.data);
+      setSelected([]);
     } catch (err: any) {
       setError(err.message || "Failed to load articles");
     }
@@ -48,6 +53,56 @@ export default function ArticlesPage() {
     sitesApi.list().then((r) => setSites(r.data)).catch(() => undefined);
     load();
   }, [router]);
+
+  const allSelected =
+    articles.length > 0 && selected.length === articles.length;
+
+  function toggleAll(checked: boolean) {
+    setSelected(checked ? articles.map((a) => a.id) : []);
+  }
+
+  function toggleOne(id: string, checked: boolean) {
+    setSelected((prev) =>
+      checked ? [...prev, id] : prev.filter((x) => x !== id),
+    );
+  }
+
+  async function removeOne(article: ArticleRow) {
+    const ok = window.confirm(
+      `Delete “${article.title}” from SheetPress?\n\nNote: This does not delete the post from WordPress.`,
+    );
+    if (!ok) return;
+    setBusyId(article.id);
+    setError("");
+    try {
+      await articlesApi.remove(article.id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Delete failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeSelected() {
+    if (!selected.length) return;
+    const ok = window.confirm(
+      `Delete ${selected.length} article(s) from SheetPress?\n\nNote: This does not delete posts from WordPress.`,
+    );
+    if (!ok) return;
+    setBulkLoading(true);
+    setError("");
+    try {
+      for (const id of selected) {
+        await articlesApi.remove(id);
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Bulk delete failed");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -100,7 +155,22 @@ export default function ArticlesPage() {
         />
       </Card>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          {selected.length > 0 ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={bulkLoading}
+              onClick={removeSelected}
+            >
+              {bulkLoading
+                ? "Deleting…"
+                : `Delete selected (${selected.length})`}
+            </Button>
+          ) : null}
+        </div>
         <Button type="button" variant="secondary" onClick={load}>
           Apply filters
         </Button>
@@ -112,7 +182,12 @@ export default function ArticlesPage() {
             <thead className="bg-surface-muted text-muted">
               <tr>
                 <th className="px-4 py-3">
-                  <input type="checkbox" />
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => toggleAll(e.target.checked)}
+                    aria-label="Select all articles"
+                  />
                 </th>
                 {[
                   "Article title",
@@ -140,7 +215,14 @@ export default function ArticlesPage() {
                 articles.map((article) => (
                   <tr key={article.id} className="border-t border-border">
                     <td className="px-4 py-3">
-                      <input type="checkbox" />
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(article.id)}
+                        onChange={(e) =>
+                          toggleOne(article.id, e.target.checked)
+                        }
+                        aria-label={`Select ${article.title}`}
+                      />
                     </td>
                     <td className="px-4 py-3 font-medium">
                       <Link
@@ -187,6 +269,16 @@ export default function ArticlesPage() {
                           href={`/articles/${article.id}`}
                         >
                           Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          className="text-danger hover:text-danger"
+                          disabled={busyId === article.id}
+                          onClick={() => removeOne(article)}
+                        >
+                          {busyId === article.id ? "…" : "Delete"}
                         </Button>
                       </div>
                     </td>

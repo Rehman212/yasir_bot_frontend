@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, Import } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, StatusBadge } from "@/components/ui/primitives";
+import { DownloadSampleSheetButton } from "@/components/download-sample-sheet-button";
 import { dashboardApi, type DashboardStats, getAccessToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -37,10 +38,13 @@ export default function DashboardPage() {
             Connected sites, imports, and publishing health at a glance.
           </p>
         </div>
-        <Button href="/import">
-          <Import className="h-4 w-4" />
-          Quick Import
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <DownloadSampleSheetButton variant="secondary" />
+          <Button href="/import">
+            <Import className="h-4 w-4" />
+            Quick Import
+          </Button>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}

@@ -10,6 +10,7 @@ import {
   articlesApi,
   getAccessToken,
   publishingApi,
+  sitesApi,
   type ArticleDetail,
 } from "@/lib/api";
 
@@ -35,11 +36,13 @@ export default function ArticleEditorPage() {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [focusKeyword, setFocusKeyword] = useState("");
+  const [lsiKeywords, setLsiKeywords] = useState("");
   const [publishAt, setPublishAt] = useState("");
   const [status, setStatus] = useState("DRAFT");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bridgeInstalled, setBridgeInstalled] = useState<boolean | null>(null);
 
   const siteName = useMemo(
     () => article?.site?.name || "Unknown site",
@@ -60,8 +63,15 @@ export default function ArticleEditorPage() {
     setSeoTitle(a.seoTitle || "");
     setSeoDescription(a.seoDescription || "");
     setFocusKeyword(a.focusKeyword || "");
+    setLsiKeywords(a.lsiKeywords || "");
     setPublishAt(toLocalInput(a.publishAt));
     setStatus(a.status || "DRAFT");
+    if (a.siteId) {
+      sitesApi
+        .seoBridge(a.siteId)
+        .then((b) => setBridgeInstalled(Boolean(b.data.installed)))
+        .catch(() => setBridgeInstalled(false));
+    }
   }
 
   useEffect(() => {
@@ -91,6 +101,7 @@ export default function ArticleEditorPage() {
         seoTitle: seoTitle || undefined,
         seoDescription: seoDescription || undefined,
         focusKeyword: focusKeyword || undefined,
+        lsiKeywords: lsiKeywords || undefined,
         publishAt: publishAt ? new Date(publishAt).toISOString() : undefined,
         status,
       });
@@ -125,9 +136,28 @@ export default function ArticleEditorPage() {
     setMessage("");
     try {
       await saveQuiet();
-      await publishingApi.publish(id);
+      const alreadyOnWp = Boolean(article?.wpPostId);
+      const res = (alreadyOnWp
+        ? await publishingApi.update(id)
+        : await publishingApi.publish(id)) as {
+        warning?: string;
+        seoWarning?: string;
+        data?: { seoWarning?: string; errorMessage?: string | null };
+      };
       await load();
-      setMessage("Published to WordPress.");
+      const warning = res.warning || res.seoWarning || res.data?.seoWarning;
+      if (warning) {
+        setBridgeInstalled(false);
+        setError(warning);
+        setMessage("");
+      } else {
+        setBridgeInstalled(true);
+        setMessage(
+          alreadyOnWp
+            ? "Updated on WordPress — Rank Math SEO title, description, and focus keyword synced."
+            : "Published to WordPress — Rank Math SEO fields synced. Hard-refresh the WP post editor.",
+        );
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Publish failed");
     } finally {
@@ -170,6 +200,7 @@ export default function ArticleEditorPage() {
       seoTitle: seoTitle || undefined,
       seoDescription: seoDescription || undefined,
       focusKeyword: focusKeyword || undefined,
+      lsiKeywords: lsiKeywords || undefined,
       publishAt: publishAt ? new Date(publishAt).toISOString() : undefined,
       status,
     });
@@ -233,13 +264,87 @@ export default function ArticleEditorPage() {
             Schedule
           </Button>
           <Button type="button" disabled={loading} onClick={publishNow}>
-            Publish now
+            {article.wpPostId ? "Update on WordPress" : "Publish now"}
           </Button>
         </div>
       </div>
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       {message ? <p className="text-sm text-brand">{message}</p> : null}
+
+      {bridgeInstalled === false ? (
+        <Card className="space-y-3 border-danger/40 bg-danger/5 p-5">
+          <h2 className="font-semibold text-danger">
+            Rank Math SEO fields need SheetPress SEO Bridge
+          </h2>
+          <p className="text-sm text-muted">
+            WordPress / Rank Math block Focus Keyword, SEO Title, and Meta
+            Description over the REST API. Install this small plugin once on{" "}
+            <strong>yasirbhatti.com</strong>, then click{" "}
+            <strong>Update on WordPress</strong> again.
+          </p>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>
+              Download{" "}
+              <a
+                href="/sheetpress-seo-bridge.zip"
+                className="font-medium text-brand hover:underline"
+              >
+                sheetpress-seo-bridge.zip
+              </a>
+            </li>
+            <li>
+              WP Admin → Plugins → Add New → Upload Plugin → Install → Activate
+            </li>
+            <li>
+              Back here → <strong>Update on WordPress</strong> → hard-refresh
+              the Rank Math screen
+            </li>
+          </ol>
+          <div className="flex flex-wrap gap-2">
+            <Button href="/sheetpress-seo-bridge.zip" variant="secondary" size="sm">
+              Download plugin zip
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={loading || !article.siteId}
+              onClick={async () => {
+                if (!article.siteId) return;
+                setLoading(true);
+                try {
+                  const b = await sitesApi.seoBridge(article.siteId);
+                  setBridgeInstalled(Boolean(b.data.installed));
+                  setMessage(
+                    b.data.installed
+                      ? "SEO Bridge detected. Click Update on WordPress now."
+                      : b.data.message || "Plugin still not detected.",
+                  );
+                  if (!b.data.installed) {
+                    setError(
+                      b.data.message ||
+                        "Plugin still not installed/activated on WordPress.",
+                    );
+                  } else {
+                    setError("");
+                  }
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError
+                      ? err.message
+                      : "Could not check SEO Bridge",
+                  );
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Check if plugin is active
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_0.8fr]">
         <Card className="space-y-4 p-6">
@@ -268,10 +373,24 @@ export default function ArticleEditorPage() {
         <Card className="space-y-4 p-6">
           <Input
             label="Featured image URL"
-            placeholder="https://…"
+            placeholder="https://example.com/image.jpg"
+            hint="Must be a full public https URL. Sheet column: Featured Image"
             value={featuredImageUrl}
             onChange={(e) => setFeaturedImageUrl(e.target.value)}
           />
+          {featuredImageUrl ? (
+            <div className="overflow-hidden rounded-xl border border-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={featuredImageUrl}
+                alt="Featured preview"
+                className="max-h-40 w-full object-cover"
+              />
+            </div>
+          ) : null}
+          {article.errorMessage ? (
+            <p className="text-sm text-danger">{article.errorMessage}</p>
+          ) : null}
           <Input
             label="Category"
             value={category}
@@ -295,8 +414,16 @@ export default function ArticleEditorPage() {
           />
           <Input
             label="Focus keyword"
+            placeholder="seo guide"
             value={focusKeyword}
             onChange={(e) => setFocusKeyword(e.target.value)}
+          />
+          <Input
+            label="LSI keywords"
+            placeholder="keyword research, on page seo, content ranking"
+            hint="Comma-separated. Synced to Rank Math as secondary focus keywords."
+            value={lsiKeywords}
+            onChange={(e) => setLsiKeywords(e.target.value)}
           />
           <Input
             label="Publish date"
@@ -316,9 +443,9 @@ export default function ArticleEditorPage() {
             <option value="FAILED">Failed</option>
           </Select>
           <p className="text-xs text-muted">
-            Status dropdown updates SheetPress only. Use{" "}
-            <strong>Publish now</strong> / <strong>Save as WP draft</strong> to
-            push to WordPress.
+            SheetPress SEO values sync to Rank Math only after the SEO Bridge
+            plugin is installed. Then use{" "}
+            <strong>Update on WordPress</strong>.
           </p>
         </Card>
       </div>

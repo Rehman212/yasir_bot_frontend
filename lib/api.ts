@@ -219,6 +219,15 @@ export const sitesApi = {
     ),
   remove: (id: string) =>
     api(`/wordpress-sites/${id}`, { method: "DELETE" }),
+  seoBridge: (siteId: string) =>
+    api<{
+      data: {
+        installed: boolean;
+        version?: string;
+        rank_math?: boolean;
+        message?: string;
+      };
+    }>(`/wordpress-integration/${siteId}/seo-bridge`),
 };
 
 export const articlesApi = {
@@ -247,6 +256,7 @@ export const articlesApi = {
       seoTitle: string;
       seoDescription: string;
       focusKeyword: string;
+      lsiKeywords: string;
       publishAt: string;
     }>,
   ) => api<{ data: ArticleDetail }>(`/articles/${id}`, { method: "PATCH", body }),
@@ -284,6 +294,40 @@ export const importsApi = {
     }>("/imports/history"),
 };
 
+export const mediaApi = {
+  list: (siteId?: string) => {
+    const qs = siteId ? `?siteId=${encodeURIComponent(siteId)}` : "";
+    return api<{ data: MediaAsset[] }>(`/media${qs}`);
+  },
+  uploadFromUrl: (siteId: string, sourceUrl: string, filename?: string) =>
+    api<{ data: MediaAsset }>("/media/upload-from-url", {
+      method: "POST",
+      body: { siteId, sourceUrl, filename },
+    }),
+  uploadFile: (siteId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("siteId", siteId);
+    return api<{ data: MediaAsset }>(
+      `/media/upload?siteId=${encodeURIComponent(siteId)}`,
+      { method: "POST", formData },
+    );
+  },
+  retry: (id: string) => api(`/media/${id}/retry`, { method: "POST" }),
+  remove: (id: string) => api(`/media/${id}`, { method: "DELETE" }),
+};
+
+export type MediaAsset = {
+  id: string;
+  sourceUrl: string;
+  filename?: string | null;
+  wpMediaId?: number | null;
+  status: string;
+  sizeBytes?: number | null;
+  error?: string | null;
+  site?: { id: string; name: string };
+};
+
 export const queueApi = {
   list: () => api<{ data: QueueRow[] }>("/queue"),
   pause: () => api("/queue/pause", { method: "POST" }),
@@ -302,6 +346,8 @@ export const publishingApi = {
       method: "POST",
       body: { articleId, publishAt, timezone },
     }),
+  update: (articleId: string) =>
+    api("/publishing/update", { method: "POST", body: { articleId } }),
 };
 
 export type WpSite = {
@@ -333,6 +379,7 @@ export type ArticleDetail = ArticleRow & {
   seoTitle?: string | null;
   seoDescription?: string | null;
   focusKeyword?: string | null;
+  lsiKeywords?: string | null;
   siteId?: string;
   errorMessage?: string | null;
 };

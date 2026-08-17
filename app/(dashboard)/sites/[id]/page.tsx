@@ -31,15 +31,22 @@ export default function SiteDetailPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [bridge, setBridge] = useState<{
+    installed: boolean;
+    version?: string;
+    message?: string;
+  } | null>(null);
 
   async function load() {
-    const [siteRes, articlesRes] = await Promise.all([
+    const [siteRes, articlesRes, bridgeRes] = await Promise.all([
       sitesApi.get(id),
       articlesApi.list({ siteId: id }),
+      sitesApi.seoBridge(id).catch(() => null),
     ]);
     setSite(siteRes.data);
     setUsername(siteRes.data.username || "");
     setArticles(articlesRes.data.slice(0, 8));
+    if (bridgeRes) setBridge(bridgeRes.data);
   }
 
   useEffect(() => {
@@ -68,6 +75,8 @@ export default function SiteDetailPage() {
       setSite(next);
       setApplicationPassword("");
       setMessage("Credentials updated and connection tested.");
+      const bridgeRes = await sitesApi.seoBridge(id).catch(() => null);
+      if (bridgeRes) setBridge(bridgeRes.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Update failed");
       await load().catch(() => undefined);
@@ -148,6 +157,73 @@ export default function SiteDetailPage() {
         <Button type="button" disabled={loading} onClick={saveCredentials}>
           {loading ? "Updating…" : "Update & reconnect"}
         </Button>
+      </Card>
+
+      <Card className="space-y-3 p-6">
+        <h2 className="font-semibold">Rank Math SEO Bridge</h2>
+        <p className="text-sm text-muted">
+          Required so Focus Keyword, SEO Title, and Meta Description appear in
+          Rank Math after publish.
+        </p>
+        <p className="text-sm">
+          Status:{" "}
+          <strong>
+            {bridge == null
+              ? "Checking…"
+              : bridge.installed
+                ? `Installed${bridge.version ? ` (v${bridge.version})` : ""}`
+                : "Not installed"}
+          </strong>
+        </p>
+        {!bridge?.installed ? (
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>
+              Download{" "}
+              <a
+                href="/sheetpress-seo-bridge.zip"
+                className="font-medium text-brand hover:underline"
+              >
+                sheetpress-seo-bridge.zip
+              </a>
+            </li>
+            <li>WP Admin → Plugins → Upload Plugin → Activate</li>
+            <li>Open each article → Update on WordPress</li>
+          </ol>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button href="/sheetpress-seo-bridge.zip" variant="secondary" size="sm">
+            Download plugin
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              setError("");
+              try {
+                const res = await sitesApi.seoBridge(id);
+                setBridge(res.data);
+                setMessage(
+                  res.data.installed
+                    ? "SEO Bridge is active."
+                    : res.data.message || "Plugin not detected yet.",
+                );
+              } catch (err) {
+                setError(
+                  err instanceof ApiError
+                    ? err.message
+                    : "Could not check SEO Bridge",
+                );
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            Recheck
+          </Button>
+        </div>
       </Card>
 
       <Card className="p-5">

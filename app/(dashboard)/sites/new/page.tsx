@@ -22,16 +22,30 @@ export default function NewSitePage() {
     setMessage("");
     setLoading(true);
     try {
-      const res = await sitesApi.create({
+      const res = (await sitesApi.create({
         name,
-        url,
-        username,
-        applicationPassword,
-      });
-      if (testOnly) {
+        url: url.replace(/\/+$/, ""),
+        username: username.trim(),
+        applicationPassword: applicationPassword.replace(/\s+/g, ""),
+      })) as {
+        data: { status: string; id: string };
+        warning?: string;
+        connected?: boolean;
+      };
+
+      if (res.data.status !== "CONNECTED" || res.connected === false) {
+        setError(
+          res.warning ||
+            "Saved as DISCONNECTED — WordPress rejected the login. Check username + Application Password below.",
+        );
         setMessage(`Saved as ${res.data.status}`);
+        return;
+      }
+
+      if (testOnly) {
+        setMessage("Connected successfully.");
       } else {
-        router.push("/sites");
+        router.push(`/sites/${res.data.id}`);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save site");
@@ -53,16 +67,22 @@ export default function NewSitePage() {
       </div>
       <Card className="space-y-4 p-6">
         <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-muted">
-          <p className="font-medium text-foreground">How to create one</p>
+          <p className="font-medium text-foreground">How to connect</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
-            <li>WordPress admin → Users → Profile (or your user)</li>
-            <li>Scroll to <strong>Application Passwords</strong></li>
-            <li>Name it e.g. <code>SheetPress</code> → Add New Application Password</li>
-            <li>Copy the generated password (spaces optional) into the field below</li>
+            <li>
+              Username = your WP login username (top-right “Howdy, …”), e.g.{" "}
+              <code>Admin</code> — <strong>not</strong> the app password name
+            </li>
+            <li>Users → Profile → Application Passwords</li>
+            <li>
+              Name it <code>SheetPress</code> → Add → copy the{" "}
+              <strong>new generated password</strong> (xxxx xxxx xxxx xxxx)
+            </li>
+            <li>Paste that password below (spaces optional)</li>
           </ol>
           <p className="mt-2">
-            Username can be your WP username or email. Site URL should be like{" "}
-            <code>https://yasirbhatti.com</code> (no <code>/wp-admin</code>).
+            Site URL like <code>https://socialvelocityy.com</code> (no{" "}
+            <code>/wp-admin</code>).
           </p>
         </div>
         <Input
@@ -80,8 +100,9 @@ export default function NewSitePage() {
           required
         />
         <Input
-          label="Username"
-          placeholder="editor or you@email.com"
+          label="WordPress username"
+          placeholder="Admin"
+          hint="Your login username (Howdy, Admin) — not the Application Password name"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
@@ -89,7 +110,7 @@ export default function NewSitePage() {
         <Input
           label="Application password"
           type="password"
-          hint="Not your normal WordPress login password"
+          hint="Fresh password from Users → Profile → Application Passwords — not your wp-admin password"
           value={applicationPassword}
           onChange={(e) => setApplicationPassword(e.target.value)}
           required
