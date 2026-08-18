@@ -11,7 +11,9 @@ import {
   getAccessToken,
   publishingApi,
   sitesApi,
+  templatesApi,
   type ArticleDetail,
+  type ContentTemplate,
 } from "@/lib/api";
 
 function toLocalInput(value?: string | null) {
@@ -37,6 +39,8 @@ export default function ArticleEditorPage() {
   const [seoDescription, setSeoDescription] = useState("");
   const [focusKeyword, setFocusKeyword] = useState("");
   const [lsiKeywords, setLsiKeywords] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const [templates, setTemplates] = useState<ContentTemplate[]>([]);
   const [publishAt, setPublishAt] = useState("");
   const [status, setStatus] = useState("DRAFT");
   const [error, setError] = useState("");
@@ -64,9 +68,14 @@ export default function ArticleEditorPage() {
     setSeoDescription(a.seoDescription || "");
     setFocusKeyword(a.focusKeyword || "");
     setLsiKeywords(a.lsiKeywords || "");
+    setTemplateId(a.templateId || "");
     setPublishAt(toLocalInput(a.publishAt));
     setStatus(a.status || "DRAFT");
     if (a.siteId) {
+      templatesApi
+        .list(a.siteId)
+        .then((t) => setTemplates(t.data))
+        .catch(() => setTemplates([]));
       sitesApi
         .seoBridge(a.siteId)
         .then((b) => setBridgeInstalled(Boolean(b.data.installed)))
@@ -102,6 +111,7 @@ export default function ArticleEditorPage() {
         seoDescription: seoDescription || undefined,
         focusKeyword: focusKeyword || undefined,
         lsiKeywords: lsiKeywords || undefined,
+        templateId: templateId || undefined,
         publishAt: publishAt ? new Date(publishAt).toISOString() : undefined,
         status,
       });
@@ -201,6 +211,7 @@ export default function ArticleEditorPage() {
       seoDescription: seoDescription || undefined,
       focusKeyword: focusKeyword || undefined,
       lsiKeywords: lsiKeywords || undefined,
+      templateId: templateId || "",
       publishAt: publishAt ? new Date(publishAt).toISOString() : undefined,
       status,
     });
@@ -412,6 +423,19 @@ export default function ArticleEditorPage() {
             value={seoDescription}
             onChange={(e) => setSeoDescription(e.target.value)}
           />
+          <Select
+            label="Content template"
+            value={templateId}
+            onChange={(e) => setTemplateId(e.target.value)}
+          >
+            <option value="">Site default (or none)</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+                {t.isDefault ? " (default)" : ""}
+              </option>
+            ))}
+          </Select>
           <Input
             label="Focus keyword"
             placeholder="seo guide"

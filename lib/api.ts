@@ -257,6 +257,7 @@ export const articlesApi = {
       seoDescription: string;
       focusKeyword: string;
       lsiKeywords: string;
+      templateId: string;
       publishAt: string;
     }>,
   ) => api<{ data: ArticleDetail }>(`/articles/${id}`, { method: "PATCH", body }),
@@ -350,6 +351,56 @@ export const publishingApi = {
     api("/publishing/update", { method: "POST", body: { articleId } }),
 };
 
+export type ContentTemplate = {
+  id: string;
+  name: string;
+  siteId?: string | null;
+  category?: string | null;
+  tags?: string[];
+  contentBefore?: string | null;
+  contentAfter?: string | null;
+  isDefault: boolean;
+  site?: { id: string; name: string } | null;
+};
+
+export const templatesApi = {
+  list: (siteId?: string) => {
+    const qs = siteId ? `?siteId=${encodeURIComponent(siteId)}` : "";
+    return api<{ data: ContentTemplate[] }>(`/templates${qs}`);
+  },
+  create: (body: {
+    name: string;
+    siteId?: string;
+    category?: string;
+    tags?: string[];
+    contentBefore?: string;
+    contentAfter?: string;
+    isDefault?: boolean;
+  }) => api<{ data: ContentTemplate }>("/templates", { method: "POST", body }),
+  createSeoPreset: (siteId?: string) =>
+    api<{ data: ContentTemplate }>("/templates/presets/seo-structure", {
+      method: "POST",
+      body: { siteId },
+    }),
+  update: (
+    id: string,
+    body: Partial<{
+      name: string;
+      siteId: string | null;
+      category: string | null;
+      tags: string[];
+      contentBefore: string | null;
+      contentAfter: string | null;
+      isDefault: boolean;
+    }>,
+  ) =>
+    api<{ data: ContentTemplate }>(`/templates/${id}`, {
+      method: "PATCH",
+      body,
+    }),
+  remove: (id: string) => api(`/templates/${id}`, { method: "DELETE" }),
+};
+
 export type WpSite = {
   id: string;
   name: string;
@@ -380,6 +431,7 @@ export type ArticleDetail = ArticleRow & {
   seoDescription?: string | null;
   focusKeyword?: string | null;
   lsiKeywords?: string | null;
+  templateId?: string | null;
   siteId?: string;
   errorMessage?: string | null;
 };

@@ -254,6 +254,24 @@ export default function MediaPage() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <StatusBadge status={prettyStatus(item.status)} />
                 <div className="flex gap-1">
+                  {item.sourceUrl?.startsWith("http") ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(item.sourceUrl);
+                          setMessage("Image link copied.");
+                          setError("");
+                        } catch {
+                          setError("Could not copy link. Copy manually from the URL.");
+                        }
+                      }}
+                    >
+                      Copy link
+                    </Button>
+                  ) : null}
                   {item.status === "FAILED" ? (
                     <Button
                       size="sm"
@@ -276,6 +294,11 @@ export default function MediaPage() {
                   </Button>
                 </div>
               </div>
+              {item.sourceUrl?.startsWith("http") ? (
+                <p className="mt-2 truncate text-[11px] text-muted" title={item.sourceUrl}>
+                  {item.sourceUrl}
+                </p>
+              ) : null}
             </Card>
           ))
         )}
