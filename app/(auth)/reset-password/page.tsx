@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authApi, ApiError } from "@/lib/api";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = useMemo(() => params.get("token") || "", [params]);
@@ -68,5 +68,19 @@ export default function ResetPasswordPage() {
         </Button>
       </form>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-2xl border border-border bg-white p-6 text-sm text-muted shadow-[var(--shadow-md)] sm:p-8">
+          Loading reset form…
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

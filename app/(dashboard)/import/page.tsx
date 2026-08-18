@@ -13,6 +13,7 @@ import {
   importsApi,
   publishingApi,
   sitesApi,
+  usersApi,
   type ArticleRow,
   type WpSite,
 } from "@/lib/api";
@@ -25,6 +26,38 @@ const steps = [
   "Preview",
   "Confirm",
 ];
+
+const intervalOptions = [
+  [0, "Instant (default)"],
+  [10, "10 seconds"],
+  [20, "20 seconds"],
+  [30, "30 seconds"],
+  [60, "1 minute"],
+  [120, "2 minutes"],
+  [300, "5 minutes"],
+] as const;
+
+type PublishProgress = {
+  active: boolean;
+  done: boolean;
+  completed: number;
+  total: number;
+  succeeded: number;
+  failed: number;
+  currentTitle: string;
+  waitingSeconds: number;
+};
+
+const emptyProgress: PublishProgress = {
+  active: false,
+  done: false,
+  completed: 0,
+  total: 0,
+  succeeded: 0,
+  failed: 0,
+  currentTitle: "",
+  waitingSeconds: 0,
+};
 
 export default function ImportPage() {
   const router = useRouter();
@@ -43,17 +76,25 @@ export default function ImportPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [publishIntervalSeconds, setPublishIntervalSeconds] = useState(0);
+  const [publishProgress, setPublishProgress] =
+    useState<PublishProgress>(emptyProgress);
 
   useEffect(() => {
     if (!getAccessToken()) {
       router.replace("/login");
       return;
     }
-    sitesApi
-      .list()
-      .then((res) => {
-        setSites(res.data);
-        if (res.data[0]) setSiteId(res.data[0].id);
+    Promise.all([sitesApi.list(), usersApi.me()])
+      .then(([sitesRes, userRes]) => {
+        setSites(sitesRes.data);
+        if (sitesRes.data[0]) setSiteId(sitesRes.data[0].id);
+        setPublishIntervalSeconds(
+          Math.max(
+            0,
+            Number(userRes.data.preferences?.publishIntervalSeconds) || 0,
+          ),
+        );
       })
       .catch((err) => setError(err.message || "Failed to load sites"));
   }, [router]);
@@ -73,8 +114,12 @@ export default function ImportPage() {
       const res = await importsApi.upload(siteId, file);
       setImported(res.data.imported);
       setErrors(res.data.errors || []);
-      const list = await articlesApi.list({ siteId });
-      setArticles(list.data.slice(0, 20));
+      if (res.data.articles?.length) {
+        setArticles(res.data.articles);
+      } else {
+        const list = await articlesApi.list({ siteId });
+        setArticles(list.data.slice(0, res.data.imported));
+      }
       return true;
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Import failed");
@@ -102,9 +147,22 @@ export default function ImportPage() {
     setMessage("");
     try {
       if (publishMode === "draft_wp" || publishMode === "publish_wp") {
+        const total = articles.length;
         let ok = 0;
         let fail = 0;
-        for (const article of articles) {
+        setPublishProgress({
+          ...emptyProgress,
+          active: true,
+          total,
+        });
+
+        for (let index = 0; index < articles.length; index += 1) {
+          const article = articles[index];
+          setPublishProgress((current) => ({
+            ...current,
+            currentTitle: article.title,
+            waitingSeconds: 0,
+          }));
           try {
             if (publishMode === "draft_wp") {
               await publishingApi.draft(article.id);
@@ -115,10 +173,40 @@ export default function ImportPage() {
           } catch {
             fail += 1;
           }
+
+          setPublishProgress((current) => ({
+            ...current,
+            completed: index + 1,
+            succeeded: ok,
+            failed: fail,
+          }));
+
+          const hasNext = index < articles.length - 1;
+          if (hasNext && publishIntervalSeconds > 0) {
+            for (
+              let remaining = publishIntervalSeconds;
+              remaining > 0;
+              remaining -= 1
+            ) {
+              setPublishProgress((current) => ({
+                ...current,
+                waitingSeconds: remaining,
+              }));
+              await new Promise((resolve) => window.setTimeout(resolve, 1000));
+            }
+          }
         }
+        setPublishProgress((current) => ({
+          ...current,
+          active: false,
+          done: true,
+          currentTitle: "",
+          waitingSeconds: 0,
+        }));
         setMessage(
           `WordPress push done: ${ok} succeeded${fail ? `, ${fail} failed` : ""}.`,
         );
+        return;
       }
       router.push("/articles");
     } catch (err) {
@@ -287,12 +375,98 @@ export default function ImportPage() {
                 Publish all to WordPress now
               </option>
             </Select>
+            {publishMode !== "keep" ? (
+              <Select
+                label="Time between each WordPress post"
+                value={String(publishIntervalSeconds)}
+                disabled={publishProgress.active}
+                onChange={(event) =>
+                  setPublishIntervalSeconds(Number(event.target.value))
+                }
+              >
+                {intervalOptions.map(([seconds, label]) => (
+                  <option key={seconds} value={seconds}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
             <p className="text-muted">
               Sheet column <strong>Post Status</strong> can be{" "}
               <code>draft</code>, <code>publish</code>, or <code>scheduled</code>
               . You can also open each article later and click Publish.
             </p>
+            {publishProgress.active || publishProgress.done ? (
+              <div className="space-y-3 rounded-xl border border-border bg-surface-muted p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">
+                      {publishProgress.done
+                        ? "Publishing complete"
+                        : "Publishing to WordPress"}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {publishProgress.completed} of {publishProgress.total} posts
+                      processed
+                    </p>
+                  </div>
+                  <span className="text-sm font-semibold text-brand">
+                    {publishProgress.total
+                      ? Math.round(
+                          (publishProgress.completed /
+                            publishProgress.total) *
+                            100,
+                        )
+                      : 0}
+                    %
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full rounded-full bg-brand transition-all duration-500"
+                    style={{
+                      width: `${
+                        publishProgress.total
+                          ? (publishProgress.completed /
+                              publishProgress.total) *
+                            100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                {!publishProgress.done ? (
+                  <div className="rounded-lg bg-white px-3 py-2">
+                    <p className="truncate text-sm font-medium">
+                      {publishProgress.currentTitle || "Preparing first post…"}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {publishProgress.waitingSeconds > 0
+                        ? `Next post in ${publishProgress.waitingSeconds} seconds`
+                        : "Uploading content, media, and SEO fields…"}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span className="text-success">
+                    {publishProgress.succeeded} succeeded
+                  </span>
+                  <span
+                    className={
+                      publishProgress.failed ? "text-danger" : "text-muted"
+                    }
+                  >
+                    {publishProgress.failed} failed
+                  </span>
+                </div>
+              </div>
+            ) : null}
             {message ? <p className="text-brand">{message}</p> : null}
+            {publishProgress.done ? (
+              <Button href="/articles" type="button" variant="secondary">
+                View all articles
+              </Button>
+            ) : null}
           </div>
         )}
 
@@ -312,9 +486,15 @@ export default function ImportPage() {
               {loading ? "Working…" : "Continue"}
             </Button>
           ) : (
-            <Button type="button" disabled={loading} onClick={onContinue}>
-              {loading ? "Working…" : "Finish"}
-            </Button>
+            !publishProgress.done && (
+              <Button type="button" disabled={loading} onClick={onContinue}>
+                {loading
+                  ? "Publishing…"
+                  : publishMode === "keep"
+                    ? "Finish"
+                    : "Start publishing"}
+              </Button>
+            )
           )}
         </div>
       </Card>

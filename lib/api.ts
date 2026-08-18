@@ -185,6 +185,34 @@ export const authApi = {
     }),
 };
 
+export type UserPreferences = {
+  timezone?: string;
+  defaultArticleStatus?: "draft" | "publish" | "schedule";
+  publishIntervalSeconds?: number;
+  retryLimit?: number;
+  emailFailedPosts?: boolean;
+  [key: string]: unknown;
+};
+
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  preferences?: UserPreferences | null;
+  subscription?: Record<string, unknown> | null;
+};
+
+export const usersApi = {
+  me: () => api<{ data: UserProfile }>("/users/me"),
+  updateProfile: (body: { name?: string; preferences?: UserPreferences }) =>
+    api<{ data: UserProfile }>("/users/me", { method: "PATCH", body }),
+  updatePreferences: (preferences: UserPreferences) =>
+    api<{ data: { preferences: UserPreferences } }>("/users/me/preferences", {
+      method: "PATCH",
+      body: { preferences },
+    }),
+};
+
 export const dashboardApi = {
   stats: () => api<{ data: DashboardStats }>("/dashboard/stats"),
 };
@@ -276,6 +304,7 @@ export const importsApi = {
       data: {
         batch: { id: string; filename?: string | null; rowCount: number; status: string };
         imported: number;
+        articles: ArticleRow[];
         errors: Array<{ row: number; message: string }>;
       };
     }>(`/imports/upload?siteId=${encodeURIComponent(siteId)}`, {
@@ -433,6 +462,7 @@ export type ArticleDetail = ArticleRow & {
   lsiKeywords?: string | null;
   templateId?: string | null;
   siteId?: string;
+  wpPostId?: number | null;
   errorMessage?: string | null;
 };
 
