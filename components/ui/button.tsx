@@ -6,6 +6,8 @@ type ButtonProps = {
   size?: "sm" | "md" | "lg";
   className?: string;
   href?: string;
+  target?: string;
+  rel?: string;
   children: React.ReactNode;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
 
@@ -31,6 +33,8 @@ export function Button({
   size = "md",
   className,
   href,
+  target,
+  rel,
   children,
   ...props
 }: ButtonProps) {
@@ -42,8 +46,16 @@ export function Button({
   );
 
   if (href) {
+    const external = /^https?:\/\//i.test(href);
+    if (external) {
+      return (
+        <a href={href} className={classes} target={target} rel={rel}>
+          {children}
+        </a>
+      );
+    }
     return (
-      <Link href={href} className={classes}>
+      <Link href={href} className={classes} target={target} rel={rel}>
         {children}
       </Link>
     );
