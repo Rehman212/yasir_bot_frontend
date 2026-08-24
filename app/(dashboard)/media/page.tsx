@@ -34,6 +34,7 @@ export default function MediaPage() {
   const [sites, setSites] = useState<WpSite[]>([]);
   const [siteId, setSiteId] = useState("");
   const [items, setItems] = useState<MediaAsset[]>([]);
+  const [quota, setQuota] = useState({ used: 0, limit: 5 });
   const [sourceUrl, setSourceUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -44,6 +45,9 @@ export default function MediaPage() {
   async function load(selectedSite?: string) {
     const res = await mediaApi.list(selectedSite || undefined);
     setItems(res.data);
+    if (res.meta) {
+      setQuota({ used: res.meta.used, limit: res.meta.limit });
+    }
   }
 
   useEffect(() => {
@@ -123,7 +127,12 @@ export default function MediaPage() {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Remove this media record from SheetPress?")) return;
+    if (
+      !window.confirm(
+        "Delete this image from SheetPress and WordPress media library?",
+      )
+    )
+      return;
     setBusyId(id);
     try {
       await mediaApi.remove(id);
@@ -142,9 +151,9 @@ export default function MediaPage() {
           Media
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Upload images to WordPress, or put a full image URL in each article’s{" "}
-          <strong>Featured Image</strong> column — SheetPress attaches it
-          automatically on publish.
+          Library limit: <strong>{quota.used}/{quota.limit}</strong> images ·
+          WebP only · under 100KB each. Sheet featured-image URLs on publish are
+          separate and do not count toward this library limit.
         </p>
       </div>
 
@@ -187,26 +196,26 @@ export default function MediaPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
             <Input
-              label="Upload from image URL"
-              placeholder="https://cdn.example.com/hero.jpg"
+              label="Upload from WebP image URL"
+              placeholder="https://cdn.example.com/hero.webp"
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
             />
-            <Button type="button" disabled={loading} onClick={uploadUrl}>
+            <Button type="button" disabled={loading || quota.used >= quota.limit} onClick={uploadUrl}>
               {loading ? "Uploading…" : "Upload URL to WordPress"}
             </Button>
           </div>
           <div className="space-y-3">
             <Input
-              label="Or upload image file"
+              label="Or upload WebP file (max 100KB)"
               type="file"
-              accept="image/*"
+              accept="image/webp,.webp"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
             <Button
               type="button"
               variant="secondary"
-              disabled={loading}
+              disabled={loading || quota.used >= quota.limit}
               onClick={uploadLocal}
             >
               {loading ? "Uploading…" : "Upload file to WordPress"}

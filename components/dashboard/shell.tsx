@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   CalendarDays,
@@ -22,31 +22,75 @@ import {
   X,
   CreditCard,
   Layers3,
+  Shield,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { brand } from "@/lib/brand";
 import { Badge } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
-import { authApi, clearSession } from "@/lib/api";
+import {
+  authApi,
+  clearSession,
+  getAccessToken,
+  getStoredUser,
+  setSession,
+  usersApi,
+  type UserProfile,
+} from "@/lib/api";
 
 const nav = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-  { href: "/sites", label: "WordPress Sites", icon: Globe2 },
-  { href: "/import", label: "Import Articles", icon: Import },
-  { href: "/articles", label: "All Articles", icon: FileText },
-  { href: "/queue", label: "Publishing Queue", icon: ListOrdered },
-  { href: "/calendar", label: "Content Calendar", icon: CalendarDays },
-  { href: "/media", label: "Media", icon: ImageIcon },
-  { href: "/templates", label: "Templates", icon: Layers3 },
-  { href: "/activity", label: "Activity Logs", icon: Activity },
-  { href: "/subscription", label: "Subscription", icon: CreditCard },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, feature: null },
+  { href: "/sites", label: "WordPress Sites", icon: Globe2, feature: "sites" },
+  { href: "/import", label: "Import Articles", icon: Import, feature: "import" },
+  { href: "/articles", label: "All Articles", icon: FileText, feature: "articles" },
+  { href: "/queue", label: "Publishing Queue", icon: ListOrdered, feature: "queue" },
+  { href: "/calendar", label: "Content Calendar", icon: CalendarDays, feature: "calendar" },
+  { href: "/media", label: "Media", icon: ImageIcon, feature: "media" },
+  { href: "/templates", label: "Templates", icon: Layers3, feature: "templates" },
+  { href: "/activity", label: "Activity Logs", icon: Activity, feature: "activity" },
+  { href: "/subscription", label: "Subscription", icon: CreditCard, feature: "subscription" },
+  { href: "/settings", label: "Settings", icon: Settings, feature: "settings" },
+  { href: "/admin", label: "Admin", icon: Shield, feature: "admin" },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    const cached = getStoredUser<UserProfile>();
+    if (cached) setProfile(cached);
+    usersApi
+      .me()
+      .then((res) => {
+        setProfile(res.data);
+        const tokens = {
+          accessToken: getAccessToken() || "",
+          refreshToken:
+            typeof window !== "undefined"
+              ? localStorage.getItem("yr_refresh_token") || ""
+              : "",
+        };
+        if (tokens.accessToken) setSession(tokens, res.data as unknown as Record<string, unknown>);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const deniedList = profile?.deniedFeatures || [];
+  const isAdmin = profile?.role === "ADMIN";
+
+  const visibleNav = useMemo(
+    () =>
+      nav.filter((item) => {
+        if (item.feature === "admin") return isAdmin;
+        if (isAdmin) return true;
+        if (!item.feature) return true;
+        return !deniedList.includes(item.feature);
+      }),
+    [isAdmin, deniedList],
+  );
 
   async function handleLogout() {
     try {
@@ -59,7 +103,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const NavLinks = () => (
     <nav className="space-y-1 px-3">
-      {nav.map((item) => {
+      {visibleNav.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
@@ -89,6 +133,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </button>
     </nav>
   );
+
+  const initials = (profile?.name || "U")
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,7 +198,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             />
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <Badge tone="brand">Professional</Badge>
+            {isAdmin ? <Badge tone="brand">Admin</Badge> : <Badge tone="brand">Professional</Badge>}
             <button
               type="button"
               className="rounded-xl border border-border p-2 text-muted hover:bg-surface-muted"
@@ -163,7 +214,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               Help
             </Link>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
-              AR
+              {initials}
             </div>
           </div>
         </header>

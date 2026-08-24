@@ -209,6 +209,8 @@ export type UserProfile = {
   id: string;
   name: string;
   email: string;
+  role?: "USER" | "ADMIN";
+  deniedFeatures?: string[];
   preferences?: UserPreferences | null;
   subscription?: Record<string, unknown> | null;
 };
@@ -221,6 +223,64 @@ export const usersApi = {
     api<{ data: { preferences: UserPreferences } }>("/users/me/preferences", {
       method: "PATCH",
       body: { preferences },
+    }),
+};
+
+export const APP_FEATURES = [
+  "sites",
+  "import",
+  "articles",
+  "queue",
+  "calendar",
+  "media",
+  "templates",
+  "activity",
+  "subscription",
+  "settings",
+] as const;
+
+export type AppFeature = (typeof APP_FEATURES)[number];
+
+export type AdminUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: "USER" | "ADMIN";
+  status: string;
+  deniedFeatures?: string[];
+  createdAt?: string;
+  subscription?: { plan?: string; status?: string; articlesUsed?: number } | null;
+  _count?: { sites?: number; articles?: number };
+};
+
+export const adminApi = {
+  stats: () => api<{ data: Record<string, unknown> }>("/admin/stats"),
+  features: () => api<{ data: string[] }>("/admin/features"),
+  listUsers: (page = 1, limit = 50) =>
+    api<{ data: AdminUser[]; meta: { total: number } }>(
+      `/admin/users?page=${page}&limit=${limit}`,
+    ),
+  createUser: (body: {
+    email: string;
+    name: string;
+    password: string;
+    role?: "USER" | "ADMIN";
+    deniedFeatures?: string[];
+  }) => api<{ data: AdminUser }>("/admin/users", { method: "POST", body }),
+  updateRole: (id: string, role: "USER" | "ADMIN") =>
+    api<{ data: AdminUser }>(`/admin/users/${id}/role`, {
+      method: "PATCH",
+      body: { role },
+    }),
+  updatePermissions: (id: string, deniedFeatures: string[]) =>
+    api<{ data: AdminUser }>(`/admin/users/${id}/permissions`, {
+      method: "PATCH",
+      body: { deniedFeatures },
+    }),
+  updateStatus: (id: string, status: string) =>
+    api<{ data: AdminUser }>(`/admin/users/${id}/status`, {
+      method: "PATCH",
+      body: { status },
     }),
 };
 
@@ -338,7 +398,15 @@ export const importsApi = {
 export const mediaApi = {
   list: (siteId?: string) => {
     const qs = siteId ? `?siteId=${encodeURIComponent(siteId)}` : "";
-    return api<{ data: MediaAsset[] }>(`/media${qs}`);
+    return api<{
+      data: MediaAsset[];
+      meta?: {
+        used: number;
+        limit: number;
+        maxBytes: number;
+        format: string;
+      };
+    }>(`/media${qs}`);
   },
   uploadFromUrl: (siteId: string, sourceUrl: string, filename?: string) =>
     api<{ data: MediaAsset }>("/media/upload-from-url", {
