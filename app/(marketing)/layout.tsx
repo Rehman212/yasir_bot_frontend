@@ -2,6 +2,7 @@ import {
   MarketingFooter,
   MarketingHeader,
 } from "@/components/marketing/site-chrome";
+import { SoftwarePromoPopup } from "@/components/marketing/software-promo-popup";
 
 export default function MarketingLayout({
   children,
@@ -13,6 +14,7 @@ export default function MarketingLayout({
       <MarketingHeader />
       <main className="flex-1">{children}</main>
       <MarketingFooter />
+      <SoftwarePromoPopup />
     </>
   );
 }

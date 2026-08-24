@@ -2,6 +2,13 @@ export const brand = {
   name: "SheetPress",
   tagline: "Publish WordPress articles automatically from a spreadsheet",
   supportEmail: "support@sheetpress.app",
+  company: {
+    name: "Social Velocityy",
+    url: "https://socialvelocityy.com",
+    displayUrl: "Socialvelocityy.com",
+    whatsapp: "+923156679495",
+    whatsappLink: "https://wa.me/923156679495",
+  },
 };
 
 export const navLinks = [

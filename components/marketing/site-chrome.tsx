@@ -133,9 +133,25 @@ export function MarketingFooter() {
       <div className="border-t border-border/80">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-6 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>
-            © {new Date().getFullYear()} {brand.name}. All rights reserved.
+            © {new Date().getFullYear()} {brand.name}. Built by{" "}
+            <a
+              href={brand.company.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground hover:text-brand"
+            >
+              {brand.company.displayUrl}
+            </a>
           </p>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href={brand.company.whatsappLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand"
+            >
+              WhatsApp {brand.company.whatsapp}
+            </a>
             {footerLinks.legal.map((link) => (
               <Link key={link.href} href={link.href} className="hover:text-brand">
                 {link.label}
