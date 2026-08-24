@@ -72,22 +72,6 @@ export default function LoginPage() {
           {loading ? "Signing in…" : "Login"}
         </Button>
       </form>
-      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-muted">
-        <span className="h-px flex-1 bg-border" />
-        or
-        <span className="h-px flex-1 bg-border" />
-      </div>
-      <Button
-        variant="secondary"
-        className="w-full"
-        type="button"
-        onClick={() => {
-          window.location.href =
-            `${process.env.NEXT_PUBLIC_API_URL || "https://yasir-bot-backend.vercel.app/api"}/auth/google`;
-        }}
-      >
-        Continue with Google
-      </Button>
       <p className="mt-6 text-center text-sm text-muted">
         Need an account? Contact your admin.
       </p>

@@ -130,17 +130,23 @@ export default function HomePage() {
                 Watch Demo
               </Button>
             </div>
-            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
+            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-3 text-sm text-foreground">
               <span className="inline-flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-accent" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-brand">
+                  <ShieldCheck className="h-4 w-4" strokeWidth={2.5} />
+                </span>
                 No plugin required
               </span>
               <span className="inline-flex items-center gap-2">
-                <Timer className="h-4 w-4 text-accent" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-brand">
+                  <Timer className="h-4 w-4" strokeWidth={2.5} />
+                </span>
                 Schedule in minutes
               </span>
               <span className="inline-flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-soft text-brand">
+                  <Sparkles className="h-4 w-4" strokeWidth={2.5} />
+                </span>
                 SEO fields supported
               </span>
             </div>
@@ -304,7 +310,9 @@ export default function HomePage() {
                 key={item.title}
                 className="rounded-2xl border border-border bg-surface-muted p-5"
               >
-                <item.icon className="h-5 w-5 text-brand" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-soft text-brand">
+                  <item.icon className="h-5 w-5" strokeWidth={2.5} />
+                </span>
                 <h3 className="mt-4 font-semibold text-foreground">
                   {item.title}
                 </h3>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 
@@ -45,10 +45,13 @@ export function SoftwarePromoPopup() {
           className="absolute right-3 top-3 rounded-lg p-1.5 text-muted hover:bg-surface-muted hover:text-foreground"
           aria-label="Close"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" strokeWidth={2.5} />
         </button>
 
-        <p className="text-xs font-semibold uppercase tracking-wide text-brand">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand">
+          <MessageCircle className="h-5 w-5" strokeWidth={2.5} />
+        </div>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-brand">
           Custom software
         </p>
         <h2
@@ -78,6 +81,7 @@ export function SoftwarePromoPopup() {
             target="_blank"
             rel="noopener noreferrer"
           >
+            <MessageCircle className="h-4 w-4" strokeWidth={2.5} />
             WhatsApp {brand.company.whatsapp}
           </Button>
           <Button
