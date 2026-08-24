@@ -70,7 +70,7 @@ export default function HowItWorksPage() {
           ))}
         </ol>
         <div className="mt-10 flex flex-wrap gap-3">
-          <Button href="/signup">Create Free Account</Button>
+          <Button href="/login">Login</Button>
           <Button href="/docs" variant="secondary">
             Read Documentation
           </Button>

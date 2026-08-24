@@ -156,15 +156,15 @@ export async function api<T = unknown>(
 }
 
 export const authApi = {
-  signup: (data: {
+  // Public signup disabled — accounts are created by admins only
+  signup: (_data: {
     name: string;
     email: string;
     password: string;
-  }) => api<{ data: { user: Record<string, unknown> } & AuthTokens }>("/auth/signup", {
-    method: "POST",
-    body: data,
-    auth: false,
-  }),
+  }) =>
+    Promise.reject(
+      new ApiError("Public signup is disabled. Ask an admin to create your account.", 403),
+    ),
   login: (data: { email: string; password: string }) =>
     api<{ data: { user: Record<string, unknown> } & AuthTokens }>("/auth/login", {
       method: "POST",

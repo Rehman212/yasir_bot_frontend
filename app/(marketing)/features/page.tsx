@@ -51,7 +51,7 @@ export default function FeaturesPage() {
           ))}
         </div>
         <div className="mt-12 text-center">
-          <Button href="/signup" size="lg">
+          <Button href="/login" size="lg">
             Start with Free Plan
           </Button>
         </div>

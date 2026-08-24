@@ -89,10 +89,7 @@ export default function LoginPage() {
         Continue with Google
       </Button>
       <p className="mt-6 text-center text-sm text-muted">
-        No account?{" "}
-        <Link href="/signup" className="font-semibold text-brand hover:underline">
-          Create one
-        </Link>
+        Need an account? Contact your admin.
       </p>
     </div>
   );

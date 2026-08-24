@@ -86,7 +86,7 @@ export default function PricingPage() {
                   ))}
                 </ul>
                 <Button
-                  href="/signup"
+                  href="/login"
                   className="mt-8"
                   variant={plan.featured ? "secondary" : "primary"}
                 >

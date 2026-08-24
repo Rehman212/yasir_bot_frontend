@@ -121,7 +121,7 @@ export default function HomePage() {
               all your content in a few clicks.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button href="/signup" size="lg">
+              <Button href="/login" size="lg">
                 Start Posting Free
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -385,7 +385,7 @@ export default function HomePage() {
                   ))}
                 </ul>
                 <Button
-                  href="/signup"
+                  href="/login"
                   className="mt-8"
                   variant={plan.featured ? "secondary" : "primary"}
                 >
@@ -456,7 +456,7 @@ export default function HomePage() {
             spreadsheet batch today.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button href="/signup" size="lg">
+            <Button href="/login" size="lg">
               Create Free Account
             </Button>
             <Button href="/how-it-works" variant="secondary" size="lg">
