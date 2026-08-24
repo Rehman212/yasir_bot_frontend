@@ -1,4 +1,15 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+function getApiUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname.endsWith(".vercel.app")
+  ) {
+    return "https://yasir-bot-backend.vercel.app/api";
+  }
+  return "http://localhost:4000/api";
+}
 
 export type AuthTokens = {
   accessToken: string;
@@ -60,7 +71,7 @@ async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
-  const res = await fetch(`${API_URL}/auth/refresh`, {
+  const res = await fetch(`${getApiUrl()}/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refreshToken }),
@@ -103,7 +114,7 @@ export async function api<T = unknown>(
   if (auth && token) headers.Authorization = `Bearer ${token}`;
 
   const doFetch = () =>
-    fetch(`${API_URL}${path}`, {
+    fetch(`${getApiUrl()}${path}`, {
       method,
       headers,
       body: formData ? formData : body !== undefined ? JSON.stringify(body) : undefined,
