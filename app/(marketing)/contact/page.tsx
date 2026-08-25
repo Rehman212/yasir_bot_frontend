@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
+"use client";
+
 import { PageHero } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { brand } from "@/lib/brand";
-
-export const metadata: Metadata = {
-  title: "Contact",
-};
+import { useSiteSettings } from "@/components/marketing/site-settings-provider";
 
 export default function ContactPage() {
+  const { settings } = useSiteSettings();
+
   return (
     <>
       <PageHero
@@ -19,18 +19,18 @@ export default function ContactPage() {
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-white p-6 shadow-[var(--shadow-sm)]">
             <h2 className="text-lg font-semibold text-foreground">
-              Built by {brand.company.name}
+              Built by {settings.companyName}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
               Need custom software, automation, or a SaaS product like
               SheetPress? Contact{" "}
               <a
-                href={brand.company.url}
+                href={settings.companyUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold text-brand hover:underline"
               >
-                {brand.company.displayUrl}
+                {settings.companyDisplay}
               </a>
               .
             </p>
@@ -38,23 +38,23 @@ export default function ContactPage() {
               <p>
                 <span className="font-medium text-foreground">Website: </span>
                 <a
-                  href={brand.company.url}
+                  href={settings.companyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-brand hover:underline"
                 >
-                  {brand.company.displayUrl}
+                  {settings.companyDisplay}
                 </a>
               </p>
               <p>
                 <span className="font-medium text-foreground">WhatsApp: </span>
                 <a
-                  href={brand.company.whatsappLink}
+                  href={settings.whatsappLink}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-brand hover:underline"
                 >
-                  {brand.company.whatsapp}
+                  {settings.whatsappNumber}
                 </a>
               </p>
               <p>
@@ -63,16 +63,20 @@ export default function ContactPage() {
               </p>
             </div>
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-              <Button href={brand.company.whatsappLink} target="_blank" rel="noopener noreferrer">
+              <Button
+                href={settings.whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 Chat on WhatsApp
               </Button>
               <Button
-                href={brand.company.url}
+                href={settings.companyUrl}
                 variant="secondary"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Visit {brand.company.displayUrl}
+                Visit {settings.companyDisplay}
               </Button>
             </div>
           </div>

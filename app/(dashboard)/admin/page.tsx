@@ -42,9 +42,25 @@ export default function AdminPage() {
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
   const [denied, setDenied] = useState<string[]>([]);
 
+  const [companyName, setCompanyName] = useState("");
+  const [companyUrl, setCompanyUrl] = useState("");
+  const [companyDisplay, setCompanyDisplay] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [promoPopupEnabled, setPromoPopupEnabled] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+
   async function load() {
     const res = await adminApi.listUsers();
     setUsers(res.data);
+  }
+
+  async function loadSiteSettings() {
+    const res = await adminApi.getSiteSettings();
+    setCompanyName(res.data.companyName);
+    setCompanyUrl(res.data.companyUrl);
+    setCompanyDisplay(res.data.companyDisplay);
+    setWhatsappNumber(res.data.whatsappNumber);
+    setPromoPopupEnabled(res.data.promoPopupEnabled);
   }
 
   useEffect(() => {
@@ -62,8 +78,31 @@ export default function AdminPage() {
       })
       .catch(() => router.replace("/login"));
     load().catch((err) => setError(err.message || "Failed to load users"));
+    loadSiteSettings().catch((err) =>
+      setError(err.message || "Failed to load site settings"),
+    );
   }, [router]);
 
+  async function saveSiteSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingSettings(true);
+    setError("");
+    setMessage("");
+    try {
+      await adminApi.updateSiteSettings({
+        companyName,
+        companyUrl,
+        companyDisplay,
+        whatsappNumber,
+        promoPopupEnabled,
+      });
+      setMessage("Site settings saved. Footer, contact, and popup updated.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to save settings");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
   function toggleDenied(feature: string) {
     setDenied((prev) =>
       prev.includes(feature)
@@ -138,6 +177,61 @@ export default function AdminPage() {
 
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       {message ? <p className="text-sm text-brand">{message}</p> : null}
+
+      <Card className="space-y-4 p-6">
+        <div>
+          <h2 className="font-semibold">Website branding & popup</h2>
+          <p className="mt-1 text-sm text-muted">
+            Controls the promo popup, footer “Built by” link, WhatsApp number,
+            and Contact page — updates the whole public site.
+          </p>
+        </div>
+        <form className="grid gap-4 md:grid-cols-2" onSubmit={saveSiteSettings}>
+          <label className="flex items-center gap-3 rounded-xl border border-border bg-surface-muted px-4 py-3 md:col-span-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={promoPopupEnabled}
+              onChange={(e) => setPromoPopupEnabled(e.target.checked)}
+            />
+            <span className="text-sm font-medium">
+              Enable promo popup on public pages
+            </span>
+          </label>
+          <Input
+            label="Company name"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            required
+          />
+          <Input
+            label="Display text (footer / popup)"
+            value={companyDisplay}
+            onChange={(e) => setCompanyDisplay(e.target.value)}
+            placeholder="Socialvelocityy.com"
+            required
+          />
+          <Input
+            label="Company website URL"
+            value={companyUrl}
+            onChange={(e) => setCompanyUrl(e.target.value)}
+            placeholder="https://socialvelocityy.com"
+            required
+          />
+          <Input
+            label="WhatsApp number"
+            value={whatsappNumber}
+            onChange={(e) => setWhatsappNumber(e.target.value)}
+            placeholder="+923156679495"
+            required
+          />
+          <div className="md:col-span-2">
+            <Button type="submit" disabled={savingSettings}>
+              {savingSettings ? "Saving…" : "Save site settings"}
+            </Button>
+          </div>
+        </form>
+      </Card>
 
       <Card className="space-y-4 p-6">
         <h2 className="font-semibold">Add user</h2>

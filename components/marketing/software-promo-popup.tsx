@@ -2,15 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
-import { brand } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
+import { useSiteSettings } from "@/components/marketing/site-settings-provider";
 
 const STORAGE_KEY = "sv_software_promo_seen";
 
 export function SoftwarePromoPopup() {
+  const { settings, loading } = useSiteSettings();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (loading || !settings.promoPopupEnabled) {
+      setOpen(false);
+      return;
+    }
     try {
       if (sessionStorage.getItem(STORAGE_KEY)) return;
     } catch {
@@ -18,7 +23,7 @@ export function SoftwarePromoPopup() {
     }
     const t = window.setTimeout(() => setOpen(true), 800);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [loading, settings.promoPopupEnabled]);
 
   function dismiss() {
     setOpen(false);
@@ -29,7 +34,7 @@ export function SoftwarePromoPopup() {
     }
   }
 
-  if (!open) return null;
+  if (!open || !settings.promoPopupEnabled) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center bg-foreground/40 p-4 sm:items-center">
@@ -64,28 +69,28 @@ export function SoftwarePromoPopup() {
           If you want a custom web app, automation tool, or SaaS built for your
           workflow, contact{" "}
           <a
-            href={brand.company.url}
+            href={settings.companyUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="font-semibold text-brand hover:underline"
           >
-            {brand.company.displayUrl}
+            {settings.companyDisplay}
           </a>
           .
         </p>
 
         <div className="mt-5 flex flex-col gap-2 sm:flex-row">
           <Button
-            href={brand.company.whatsappLink}
+            href={settings.whatsappLink}
             className="w-full sm:flex-1"
             target="_blank"
             rel="noopener noreferrer"
           >
             <MessageCircle className="h-4 w-4" strokeWidth={2.5} />
-            WhatsApp {brand.company.whatsapp}
+            WhatsApp {settings.whatsappNumber}
           </Button>
           <Button
-            href={brand.company.url}
+            href={settings.companyUrl}
             variant="secondary"
             className="w-full sm:flex-1"
             target="_blank"

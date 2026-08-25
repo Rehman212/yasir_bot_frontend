@@ -1,4 +1,4 @@
-function getApiUrl(): string {
+export function getApiUrl(): string {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
@@ -256,6 +256,12 @@ export type AdminUser = {
 export const adminApi = {
   stats: () => api<{ data: Record<string, unknown> }>("/admin/stats"),
   features: () => api<{ data: string[] }>("/admin/features"),
+  getSiteSettings: () => api<{ data: SiteSettings }>("/admin/site-settings"),
+  updateSiteSettings: (body: Partial<SiteSettings>) =>
+    api<{ data: SiteSettings }>("/admin/site-settings", {
+      method: "PATCH",
+      body,
+    }),
   listUsers: (page = 1, limit = 50) =>
     api<{ data: AdminUser[]; meta: { total: number } }>(
       `/admin/users?page=${page}&limit=${limit}`,
@@ -282,6 +288,20 @@ export const adminApi = {
       method: "PATCH",
       body: { status },
     }),
+};
+
+export type SiteSettings = {
+  companyName: string;
+  companyUrl: string;
+  companyDisplay: string;
+  whatsappNumber: string;
+  whatsappLink: string;
+  promoPopupEnabled: boolean;
+};
+
+export const siteSettingsApi = {
+  get: () =>
+    api<{ data: SiteSettings }>("/site-settings", { auth: false }),
 };
 
 export const dashboardApi = {

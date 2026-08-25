@@ -7,6 +7,7 @@ import { Menu, X, FileSpreadsheet } from "lucide-react";
 import { brand, footerLinks, navLinks } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useSiteSettings } from "@/components/marketing/site-settings-provider";
 
 export function MarketingHeader() {
   const pathname = usePathname();
@@ -87,6 +88,7 @@ export function MarketingHeader() {
 }
 
 export function MarketingFooter() {
+  const { settings } = useSiteSettings();
   const groups = [
     { title: "Product", links: footerLinks.product },
     { title: "Company", links: footerLinks.company },
@@ -135,22 +137,22 @@ export function MarketingFooter() {
           <p>
             © {new Date().getFullYear()} {brand.name}. Built by{" "}
             <a
-              href={brand.company.url}
+              href={settings.companyUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-foreground hover:text-brand"
             >
-              {brand.company.displayUrl}
+              {settings.companyDisplay}
             </a>
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <a
-              href={brand.company.whatsappLink}
+              href={settings.whatsappLink}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-brand"
             >
-              WhatsApp {brand.company.whatsapp}
+              WhatsApp {settings.whatsappNumber}
             </a>
             {footerLinks.legal.map((link) => (
               <Link key={link.href} href={link.href} className="hover:text-brand">
