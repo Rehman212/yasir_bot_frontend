@@ -14,7 +14,7 @@ import {
   type WpSite,
 } from "@/lib/api";
 
-const MAX_BATCH_UPLOAD = 100;
+const MAX_BATCH_UPLOAD = 400;
 
 function formatSize(bytes?: number | null) {
   if (!bytes) return "—";
@@ -36,7 +36,7 @@ export default function MediaPage() {
   const [sites, setSites] = useState<WpSite[]>([]);
   const [siteId, setSiteId] = useState("");
   const [items, setItems] = useState<MediaAsset[]>([]);
-  const [quota, setQuota] = useState({ used: 0, limit: 500 });
+  const [quota, setQuota] = useState({ used: 0, limit: 2000 });
   const [sourceUrl, setSourceUrl] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
