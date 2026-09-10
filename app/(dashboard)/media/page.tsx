@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -14,7 +14,17 @@ import {
   type WpSite,
 } from "@/lib/api";
 
-const MAX_BATCH_UPLOAD = 400;
+/** How many files to upload in one wave when library slots are free. */
+const BATCH_SIZE = 100;
+
+type QueueStatus = "queued" | "uploading" | "done" | "failed";
+
+type QueueItem = {
+  id: string;
+  file: File;
+  status: QueueStatus;
+  error?: string;
+};
 
 function formatSize(bytes?: number | null) {
   if (!bytes) return "—";
@@ -31,6 +41,13 @@ function prettyStatus(status: string) {
   return status;
 }
 
+function queueBadge(status: QueueStatus) {
+  if (status === "queued") return "QUEUED";
+  if (status === "uploading") return "PENDING";
+  if (status === "done") return "UPLOADED";
+  return "FAILED";
+}
+
 export default function MediaPage() {
   const router = useRouter();
   const [sites, setSites] = useState<WpSite[]>([]);
@@ -38,26 +55,144 @@ export default function MediaPage() {
   const [items, setItems] = useState<MediaAsset[]>([]);
   const [quota, setQuota] = useState({ used: 0, limit: 2000 });
   const [sourceUrl, setSourceUrl] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+
+  const processingRef = useRef(false);
+  const siteIdRef = useRef(siteId);
+  const quotaRef = useRef(quota);
+  const queueRef = useRef<QueueItem[]>([]);
+
+  useEffect(() => {
+    siteIdRef.current = siteId;
+  }, [siteId]);
+  useEffect(() => {
+    quotaRef.current = quota;
+  }, [quota]);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   const allSelected = useMemo(
     () => items.length > 0 && selected.size === items.length,
     [items, selected],
   );
 
-  async function load(selectedSite?: string) {
+  const queueCounts = useMemo(() => {
+    const counts = { queued: 0, uploading: 0, done: 0, failed: 0 };
+    for (const q of queue) counts[q.status] += 1;
+    return counts;
+  }, [queue]);
+
+  const load = useCallback(async (selectedSite?: string) => {
     const res = await mediaApi.list(selectedSite || undefined);
     setItems(res.data);
     setSelected(new Set());
     if (res.meta) {
-      setQuota({ used: res.meta.used, limit: res.meta.limit });
+      const next = { used: res.meta.used, limit: res.meta.limit };
+      setQuota(next);
+      quotaRef.current = next;
+      return next;
     }
-  }
+    return quotaRef.current;
+  }, []);
+
+  const processQueue = useCallback(async () => {
+    if (processingRef.current) return;
+    const currentSite = siteIdRef.current;
+    if (!currentSite) {
+      setError("Select a WordPress site first.");
+      return;
+    }
+
+    processingRef.current = true;
+    setProcessing(true);
+    setError("");
+
+    try {
+      let latestQuota = quotaRef.current;
+
+      while (true) {
+        const slots = Math.max(0, latestQuota.limit - latestQuota.used);
+        const waiting = queueRef.current.filter((q) => q.status === "queued");
+
+        if (!waiting.length) {
+          setMessage(
+            `Queue empty. Library ${latestQuota.used}/${latestQuota.limit}.`,
+          );
+          break;
+        }
+
+        if (slots <= 0) {
+          setMessage(
+            `Library full (${latestQuota.used}/${latestQuota.limit}). Delete images in SheetPress — next ${BATCH_SIZE} from queue will upload automatically.`,
+          );
+          break;
+        }
+
+        const wave = waiting.slice(0, Math.min(BATCH_SIZE, slots));
+        const waveIds = new Set(wave.map((w) => w.id));
+
+        setQueue((prev) => {
+          const next = prev.map((q) =>
+            waveIds.has(q.id) ? { ...q, status: "uploading" as const } : q,
+          );
+          queueRef.current = next;
+          return next;
+        });
+
+        let uploaded = 0;
+        for (const item of wave) {
+          try {
+            await mediaApi.uploadFile(currentSite, item.file);
+            uploaded += 1;
+            setQueue((prev) => {
+              const next = prev.map((q) =>
+                q.id === item.id ? { ...q, status: "done" as const } : q,
+              );
+              queueRef.current = next;
+              return next;
+            });
+          } catch (err) {
+            const msg =
+              err instanceof ApiError ? err.message : "Upload failed";
+            setQueue((prev) => {
+              const next = prev.map((q) =>
+                q.id === item.id
+                  ? { ...q, status: "failed" as const, error: msg }
+                  : q,
+              );
+              queueRef.current = next;
+              return next;
+            });
+          }
+        }
+
+        latestQuota = await load(currentSite);
+        const stillWaiting = queueRef.current.filter(
+          (q) => q.status === "queued",
+        ).length;
+        setMessage(
+          `Batch done: ${uploaded}/${wave.length} uploaded. Library ${latestQuota.used}/${latestQuota.limit}. Waiting in queue: ${stillWaiting}.`,
+        );
+
+        if (
+          stillWaiting === 0 ||
+          latestQuota.limit - latestQuota.used <= 0
+        ) {
+          break;
+        }
+      }
+    } finally {
+      processingRef.current = false;
+      setProcessing(false);
+    }
+  }, [load]);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -72,7 +207,7 @@ export default function MediaPage() {
       })
       .catch((err) => setError(err.message || "Failed to load sites"));
     load().catch((err) => setError(err.message || "Failed to load media"));
-  }, [router]);
+  }, [router, load]);
 
   function toggleOne(id: string) {
     setSelected((prev) => {
@@ -115,74 +250,26 @@ export default function MediaPage() {
     }
   }
 
-  async function uploadLocal() {
-    if (!siteId) {
-      setError("Select a WordPress site first.");
-      return;
-    }
-    if (!files.length) {
-      setError("Choose one or more WebP image files.");
-      return;
-    }
-    if (files.length > MAX_BATCH_UPLOAD) {
-      setError(`You can upload at most ${MAX_BATCH_UPLOAD} images at a time.`);
-      return;
-    }
-
-    const remaining = Math.max(0, quota.limit - quota.used);
-    if (remaining <= 0) {
-      setError(
-        `Media limit reached (${quota.limit}). Delete images first to free space.`,
-      );
-      return;
-    }
-
-    const batch = files.slice(0, Math.min(MAX_BATCH_UPLOAD, remaining));
-    setLoading(true);
+  function enqueueSelectedFiles(list: File[]) {
+    if (!list.length) return;
+    const now = Date.now();
+    const additions: QueueItem[] = list.map((file, i) => ({
+      id: `${now}-${i}-${file.name}`,
+      file,
+      status: "queued",
+    }));
+    setQueue((prev) => {
+      const next = [...prev, ...additions];
+      queueRef.current = next;
+      return next;
+    });
+    setMessage(
+      `Added ${additions.length} file(s) to queue. Uploading up to ${BATCH_SIZE} now; rest wait until you free library slots (delete).`,
+    );
     setError("");
-    setMessage("");
-
-    let ok = 0;
-    const failures: string[] = [];
-    for (const file of batch) {
-      try {
-        await mediaApi.uploadFile(siteId, file);
-        ok += 1;
-      } catch (err) {
-        failures.push(
-          `${file.name}: ${err instanceof ApiError ? err.message : "failed"}`,
-        );
-      }
-    }
-
-    setFiles([]);
-    await load(siteId);
-    if (ok) {
-      setMessage(
-        `Uploaded ${ok} image${ok === 1 ? "" : "s"}${
-          files.length > batch.length
-            ? ` (capped by library space / max ${MAX_BATCH_UPLOAD})`
-            : ""
-        }.`,
-      );
-    }
-    if (failures.length) {
-      setError(failures.slice(0, 3).join(" · "));
-    }
-    setLoading(false);
-  }
-
-  async function retry(id: string) {
-    setBusyId(id);
-    setError("");
-    try {
-      await mediaApi.retry(id);
-      await load(siteId || undefined);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Retry failed");
-    } finally {
-      setBusyId(null);
-    }
+    setTimeout(() => {
+      processQueue().catch(() => undefined);
+    }, 50);
   }
 
   async function remove(id: string) {
@@ -196,6 +283,9 @@ export default function MediaPage() {
     try {
       await mediaApi.remove(id);
       await load(siteId || undefined);
+      setTimeout(() => {
+        processQueue().catch(() => undefined);
+      }, 50);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Delete failed");
     } finally {
@@ -211,7 +301,7 @@ export default function MediaPage() {
     }
     if (
       !window.confirm(
-        `Remove ${ids.length} selected image(s) from SheetPress only? WordPress files stay.`,
+        `Remove ${ids.length} selected image(s) from SheetPress only? Next queued batch will upload.`,
       )
     )
       return;
@@ -221,9 +311,12 @@ export default function MediaPage() {
     try {
       const res = await mediaApi.removeMany(ids);
       setMessage(
-        `Deleted ${res.data.deleted} image${res.data.deleted === 1 ? "" : "s"}.`,
+        `Removed ${res.data.deleted} from SheetPress. Starting next queue batch…`,
       );
       await load(siteId || undefined);
+      setTimeout(() => {
+        processQueue().catch(() => undefined);
+      }, 50);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bulk delete failed");
     } finally {
@@ -235,7 +328,7 @@ export default function MediaPage() {
     if (!items.length) return;
     if (
       !window.confirm(
-        `Remove ALL ${items.length} listed image(s) from SheetPress only? WordPress files stay.`,
+        `Remove ALL ${items.length} listed image(s) from SheetPress only? Next queued batch will upload.`,
       )
     )
       return;
@@ -244,14 +337,54 @@ export default function MediaPage() {
     setMessage("");
     try {
       const res = await mediaApi.removeMany(items.map((i) => i.id));
-      setMessage(`Deleted ${res.data.deleted} image(s).`);
+      setMessage(
+        `Removed ${res.data.deleted} from SheetPress. Processing upload queue…`,
+      );
       await load(siteId || undefined);
+      setTimeout(() => {
+        processQueue().catch(() => undefined);
+      }, 50);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Delete all failed");
     } finally {
       setLoading(false);
     }
   }
+
+  function clearFinishedQueue() {
+    setQueue((prev) => {
+      const next = prev.filter(
+        (q) => q.status === "queued" || q.status === "uploading",
+      );
+      queueRef.current = next;
+      return next;
+    });
+  }
+
+  function clearEntireQueue() {
+    if (processing) {
+      setError("Wait for the current batch to finish before clearing the queue.");
+      return;
+    }
+    queueRef.current = [];
+    setQueue([]);
+    setMessage("Upload queue cleared.");
+  }
+
+  async function retry(id: string) {
+    setBusyId(id);
+    setError("");
+    try {
+      await mediaApi.retry(id);
+      await load(siteId || undefined);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Retry failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const activeQueue = queue.filter((q) => q.status !== "done");
 
   return (
     <div className="space-y-6">
@@ -260,28 +393,24 @@ export default function MediaPage() {
           Media
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Library limit: <strong>{quota.used}/{quota.limit}</strong> images ·
-          WebP only · under 100KB · up to <strong>{MAX_BATCH_UPLOAD}</strong>{" "}
-          files per upload. Sheet featured-image URLs on publish are separate.
+          Library: <strong>{quota.used}/{quota.limit}</strong> · WebP · under
+          100KB · queue uploads in waves of <strong>{BATCH_SIZE}</strong>.
+          Delete from SheetPress to free slots and auto-start the next batch.
+          WordPress files stay when you delete here.
         </p>
       </div>
 
       <Card className="space-y-4 p-6">
-        <h2 className="font-semibold">How images get on posts</h2>
+        <h2 className="font-semibold">How the upload queue works</h2>
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+          <li>Select any number of WebP files — all go into the queue.</li>
           <li>
-            In your sheet, set <strong>Featured Image</strong> to a public URL
-            like <code>https://example.com/photo.jpg</code> (not just{" "}
-            <code>image.jpg</code>).
+            SheetPress uploads up to <strong>{BATCH_SIZE}</strong> while library
+            slots are free.
           </li>
           <li>
-            On publish, SheetPress downloads that URL, uploads to WordPress, and
-            sets it as the post featured image.
-          </li>
-          <li>
-            This Media page is for manual uploads / retries — you do{" "}
-            <em>not</em> need to manually link each Media item to each post if
-            the sheet already has the URL.
+            Remaining stay <strong>Queued</strong>. After you delete images from
+            SheetPress, the next {BATCH_SIZE} start automatically.
           </li>
         </ol>
       </Card>
@@ -312,7 +441,7 @@ export default function MediaPage() {
             />
             <Button
               type="button"
-              disabled={loading || quota.used >= quota.limit}
+              disabled={loading || processing || quota.used >= quota.limit}
               onClick={uploadUrl}
             >
               {loading ? "Uploading…" : "Upload URL to WordPress"}
@@ -320,43 +449,85 @@ export default function MediaPage() {
           </div>
           <div className="space-y-3">
             <Input
-              label={`Upload WebP files (max ${MAX_BATCH_UPLOAD} at a time, 100KB each)`}
+              label={`Add WebP files to queue (${BATCH_SIZE}/wave, 100KB each)`}
               type="file"
               accept="image/webp,.webp"
               multiple
               onChange={(e) => {
                 const list = Array.from(e.target.files || []);
-                setFiles(list.slice(0, MAX_BATCH_UPLOAD));
-                if (list.length > MAX_BATCH_UPLOAD) {
-                  setError(
-                    `Only the first ${MAX_BATCH_UPLOAD} files will be uploaded.`,
-                  );
-                }
+                enqueueSelectedFiles(list);
+                e.target.value = "";
               }}
             />
-            {files.length ? (
-              <p className="text-xs text-muted">
-                Selected: {files.length} file{files.length === 1 ? "" : "s"}
-              </p>
-            ) : null}
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={loading || quota.used >= quota.limit || !files.length}
-              onClick={uploadLocal}
-            >
-              {loading
-                ? "Uploading…"
-                : `Upload ${files.length || ""} file${
-                    files.length === 1 ? "" : "s"
-                  } to WordPress`.replace(/\s+/g, " ").trim()}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={processing || !queueCounts.queued || !siteId}
+                onClick={() => processQueue()}
+              >
+                {processing
+                  ? "Uploading batch…"
+                  : `Continue queue (${queueCounts.queued} waiting)`}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={processing}
+                onClick={clearFinishedQueue}
+              >
+                Clear finished
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={processing || queue.length === 0}
+                onClick={clearEntireQueue}
+              >
+                Clear queue
+              </Button>
+            </div>
           </div>
         </div>
 
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {message ? <p className="text-sm text-brand">{message}</p> : null}
       </Card>
+
+      {queue.length > 0 ? (
+        <Card className="space-y-3 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold">Upload queue</h2>
+            <p className="text-sm text-muted">
+              Waiting {queueCounts.queued} · Uploading {queueCounts.uploading} ·
+              Done {queueCounts.done} · Failed {queueCounts.failed}
+            </p>
+          </div>
+          <div className="max-h-72 space-y-2 overflow-y-auto">
+            {activeQueue.length === 0 ? (
+              <p className="text-sm text-muted">
+                All selected files finished. Clear finished to tidy the list.
+              </p>
+            ) : (
+              activeQueue.map((q) => (
+                <div
+                  key={q.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{q.file.name}</p>
+                    <p className="text-xs text-muted">
+                      {formatSize(q.file.size)}
+                      {q.error ? ` · ${q.error}` : ""}
+                    </p>
+                  </div>
+                  <StatusBadge status={queueBadge(q.status)} />
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      ) : null}
 
       {items.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -394,8 +565,7 @@ export default function MediaPage() {
         {items.length === 0 ? (
           <Card className="p-5 sm:col-span-2 xl:col-span-4">
             <p className="text-sm text-muted">
-              No media yet. Upload above, or publish an article that has a
-              Featured Image URL in the sheet.
+              No media in SheetPress library yet. Add files to the queue above.
             </p>
           </Card>
         ) : (
@@ -479,14 +649,6 @@ export default function MediaPage() {
                   </Button>
                 </div>
               </div>
-              {item.sourceUrl?.startsWith("http") ? (
-                <p
-                  className="mt-2 truncate text-[11px] text-muted"
-                  title={item.sourceUrl}
-                >
-                  {item.sourceUrl}
-                </p>
-              ) : null}
             </Card>
           ))
         )}
