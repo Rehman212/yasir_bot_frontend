@@ -324,26 +324,110 @@ export default function ImportPage() {
 
         {step === 3 && (
           <div className="space-y-3">
+            <p className="text-sm text-muted">
+              Review imported rows. If a Featured Image link is missing, paste
+              it here and save — no need to re-upload the sheet.
+            </p>
             {articles.length === 0 ? (
               <p className="text-sm text-muted">No articles imported yet.</p>
             ) : (
-              articles.map((article) => (
-                <div
-                  key={article.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium">{article.title}</p>
-                    <p className="text-xs text-muted">
-                      {article.category || "Uncategorized"} · {article.status}
-                    </p>
+              articles.map((article) => {
+                const missingImage = !article.featuredImageUrl?.trim();
+                return (
+                  <div
+                    key={article.id}
+                    className="space-y-3 rounded-xl border border-border px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{article.title}</p>
+                        <p className="text-xs text-muted">
+                          {article.category || "Uncategorized"} ·{" "}
+                          {article.status}
+                          {missingImage ? (
+                            <span className="ml-2 font-medium text-warning">
+                              · Missing image
+                            </span>
+                          ) : (
+                            <span className="ml-2 text-success">· Image set</span>
+                          )}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        href={`/articles/${article.id}`}
+                      >
+                        Open
+                      </Button>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="flex-1">
+                        <Input
+                          label="Featured image URL"
+                          placeholder="https://cdn.example.com/photo.webp"
+                          value={article.featuredImageUrl || ""}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setArticles((prev) =>
+                              prev.map((a) =>
+                                a.id === article.id
+                                  ? { ...a, featuredImageUrl: value }
+                                  : a,
+                              ),
+                            );
+                          }}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={loading}
+                        onClick={async () => {
+                          setLoading(true);
+                          setError("");
+                          setMessage("");
+                          try {
+                            const url = (article.featuredImageUrl || "").trim();
+                            await articlesApi.update(article.id, {
+                              featuredImageUrl: url,
+                            });
+                            setArticles((prev) =>
+                              prev.map((a) =>
+                                a.id === article.id
+                                  ? { ...a, featuredImageUrl: url || null }
+                                  : a,
+                              ),
+                            );
+                            setMessage(
+                              url
+                                ? `Image link saved for “${article.title}”.`
+                                : `Image link cleared for “${article.title}”.`,
+                            );
+                          } catch (err) {
+                            setError(
+                              err instanceof ApiError
+                                ? err.message
+                                : "Failed to save image link",
+                            );
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                      >
+                        Save image
+                      </Button>
+                    </div>
                   </div>
-                  <Button size="sm" variant="ghost" href={`/articles/${article.id}`}>
-                    Open
-                  </Button>
-                </div>
-              ))
+                );
+              })
             )}
+            {articles.some((a) => !a.featuredImageUrl?.trim()) ? (
+              <p className="text-sm text-warning">
+                Some rows still need an image URL. You can continue without
+                them, or fill links above before Confirm.
+              </p>
+            ) : null}
           </div>
         )}
 

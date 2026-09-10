@@ -550,6 +550,7 @@ export type ArticleRow = {
   status: string;
   category?: string | null;
   publishAt?: string | null;
+  featuredImageUrl?: string | null;
   wpUrl?: string | null;
   site?: { id?: string; name: string; url?: string };
 };
