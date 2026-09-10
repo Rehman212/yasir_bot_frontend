@@ -14,7 +14,7 @@ import {
   type WpSite,
 } from "@/lib/api";
 
-const MAX_BATCH_UPLOAD = 10;
+const MAX_BATCH_UPLOAD = 100;
 
 function formatSize(bytes?: number | null) {
   if (!bytes) return "—";
@@ -36,7 +36,7 @@ export default function MediaPage() {
   const [sites, setSites] = useState<WpSite[]>([]);
   const [siteId, setSiteId] = useState("");
   const [items, setItems] = useState<MediaAsset[]>([]);
-  const [quota, setQuota] = useState({ used: 0, limit: 50 });
+  const [quota, setQuota] = useState({ used: 0, limit: 500 });
   const [sourceUrl, setSourceUrl] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -188,7 +188,7 @@ export default function MediaPage() {
   async function remove(id: string) {
     if (
       !window.confirm(
-        "Delete this image from SheetPress and WordPress media library?",
+        "Remove this image from SheetPress only? (WordPress media stays unchanged)",
       )
     )
       return;
@@ -211,7 +211,7 @@ export default function MediaPage() {
     }
     if (
       !window.confirm(
-        `Delete ${ids.length} selected image(s) from SheetPress and WordPress?`,
+        `Remove ${ids.length} selected image(s) from SheetPress only? WordPress files stay.`,
       )
     )
       return;
@@ -235,7 +235,7 @@ export default function MediaPage() {
     if (!items.length) return;
     if (
       !window.confirm(
-        `Delete ALL ${items.length} listed image(s) from SheetPress and WordPress?`,
+        `Remove ALL ${items.length} listed image(s) from SheetPress only? WordPress files stay.`,
       )
     )
       return;
