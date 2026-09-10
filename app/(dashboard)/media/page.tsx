@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import {
   type MediaAsset,
   type WpSite,
 } from "@/lib/api";
+
+const MAX_BATCH_UPLOAD = 10;
 
 function formatSize(bytes?: number | null) {
   if (!bytes) return "—";
@@ -34,17 +36,24 @@ export default function MediaPage() {
   const [sites, setSites] = useState<WpSite[]>([]);
   const [siteId, setSiteId] = useState("");
   const [items, setItems] = useState<MediaAsset[]>([]);
-  const [quota, setQuota] = useState({ used: 0, limit: 5 });
+  const [quota, setQuota] = useState({ used: 0, limit: 50 });
   const [sourceUrl, setSourceUrl] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const allSelected = useMemo(
+    () => items.length > 0 && selected.size === items.length,
+    [items, selected],
+  );
+
   async function load(selectedSite?: string) {
     const res = await mediaApi.list(selectedSite || undefined);
     setItems(res.data);
+    setSelected(new Set());
     if (res.meta) {
       setQuota({ used: res.meta.used, limit: res.meta.limit });
     }
@@ -64,6 +73,23 @@ export default function MediaPage() {
       .catch((err) => setError(err.message || "Failed to load sites"));
     load().catch((err) => setError(err.message || "Failed to load media"));
   }, [router]);
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected(new Set());
+      return;
+    }
+    setSelected(new Set(items.map((i) => i.id)));
+  }
 
   async function uploadUrl() {
     if (!siteId) {
@@ -94,23 +120,56 @@ export default function MediaPage() {
       setError("Select a WordPress site first.");
       return;
     }
-    if (!file) {
-      setError("Choose an image file.");
+    if (!files.length) {
+      setError("Choose one or more WebP image files.");
       return;
     }
+    if (files.length > MAX_BATCH_UPLOAD) {
+      setError(`You can upload at most ${MAX_BATCH_UPLOAD} images at a time.`);
+      return;
+    }
+
+    const remaining = Math.max(0, quota.limit - quota.used);
+    if (remaining <= 0) {
+      setError(
+        `Media limit reached (${quota.limit}). Delete images first to free space.`,
+      );
+      return;
+    }
+
+    const batch = files.slice(0, Math.min(MAX_BATCH_UPLOAD, remaining));
     setLoading(true);
     setError("");
     setMessage("");
-    try {
-      await mediaApi.uploadFile(siteId, file);
-      setFile(null);
-      setMessage("Image file uploaded to WordPress.");
-      await load(siteId);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Upload failed");
-    } finally {
-      setLoading(false);
+
+    let ok = 0;
+    const failures: string[] = [];
+    for (const file of batch) {
+      try {
+        await mediaApi.uploadFile(siteId, file);
+        ok += 1;
+      } catch (err) {
+        failures.push(
+          `${file.name}: ${err instanceof ApiError ? err.message : "failed"}`,
+        );
+      }
     }
+
+    setFiles([]);
+    await load(siteId);
+    if (ok) {
+      setMessage(
+        `Uploaded ${ok} image${ok === 1 ? "" : "s"}${
+          files.length > batch.length
+            ? ` (capped by library space / max ${MAX_BATCH_UPLOAD})`
+            : ""
+        }.`,
+      );
+    }
+    if (failures.length) {
+      setError(failures.slice(0, 3).join(" · "));
+    }
+    setLoading(false);
   }
 
   async function retry(id: string) {
@@ -144,6 +203,56 @@ export default function MediaPage() {
     }
   }
 
+  async function deleteSelected() {
+    const ids = [...selected];
+    if (!ids.length) {
+      setError("Select at least one image to delete.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Delete ${ids.length} selected image(s) from SheetPress and WordPress?`,
+      )
+    )
+      return;
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await mediaApi.removeMany(ids);
+      setMessage(
+        `Deleted ${res.data.deleted} image${res.data.deleted === 1 ? "" : "s"}.`,
+      );
+      await load(siteId || undefined);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Bulk delete failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteAll() {
+    if (!items.length) return;
+    if (
+      !window.confirm(
+        `Delete ALL ${items.length} listed image(s) from SheetPress and WordPress?`,
+      )
+    )
+      return;
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const res = await mediaApi.removeMany(items.map((i) => i.id));
+      setMessage(`Deleted ${res.data.deleted} image(s).`);
+      await load(siteId || undefined);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Delete all failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -152,8 +261,8 @@ export default function MediaPage() {
         </h1>
         <p className="mt-1 text-sm text-muted">
           Library limit: <strong>{quota.used}/{quota.limit}</strong> images ·
-          WebP only · under 100KB each. Sheet featured-image URLs on publish are
-          separate and do not count toward this library limit.
+          WebP only · under 100KB · up to <strong>{MAX_BATCH_UPLOAD}</strong>{" "}
+          files per upload. Sheet featured-image URLs on publish are separate.
         </p>
       </div>
 
@@ -201,24 +310,46 @@ export default function MediaPage() {
               value={sourceUrl}
               onChange={(e) => setSourceUrl(e.target.value)}
             />
-            <Button type="button" disabled={loading || quota.used >= quota.limit} onClick={uploadUrl}>
+            <Button
+              type="button"
+              disabled={loading || quota.used >= quota.limit}
+              onClick={uploadUrl}
+            >
               {loading ? "Uploading…" : "Upload URL to WordPress"}
             </Button>
           </div>
           <div className="space-y-3">
             <Input
-              label="Or upload WebP file (max 100KB)"
+              label={`Upload WebP files (max ${MAX_BATCH_UPLOAD} at a time, 100KB each)`}
               type="file"
               accept="image/webp,.webp"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              multiple
+              onChange={(e) => {
+                const list = Array.from(e.target.files || []);
+                setFiles(list.slice(0, MAX_BATCH_UPLOAD));
+                if (list.length > MAX_BATCH_UPLOAD) {
+                  setError(
+                    `Only the first ${MAX_BATCH_UPLOAD} files will be uploaded.`,
+                  );
+                }
+              }}
             />
+            {files.length ? (
+              <p className="text-xs text-muted">
+                Selected: {files.length} file{files.length === 1 ? "" : "s"}
+              </p>
+            ) : null}
             <Button
               type="button"
               variant="secondary"
-              disabled={loading || quota.used >= quota.limit}
+              disabled={loading || quota.used >= quota.limit || !files.length}
               onClick={uploadLocal}
             >
-              {loading ? "Uploading…" : "Upload file to WordPress"}
+              {loading
+                ? "Uploading…"
+                : `Upload ${files.length || ""} file${
+                    files.length === 1 ? "" : "s"
+                  } to WordPress`.replace(/\s+/g, " ").trim()}
             </Button>
           </div>
         </div>
@@ -226,6 +357,38 @@ export default function MediaPage() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
         {message ? <p className="text-sm text-brand">{message}</p> : null}
       </Card>
+
+      {items.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+            />
+            Select all ({items.length})
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={loading || selected.size === 0}
+            onClick={deleteSelected}
+          >
+            Delete selected ({selected.size})
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            disabled={loading}
+            onClick={deleteAll}
+          >
+            Delete all
+          </Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {items.length === 0 ? (
@@ -238,6 +401,17 @@ export default function MediaPage() {
         ) : (
           items.map((item) => (
             <Card key={item.id} className="p-5">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <label className="inline-flex items-center gap-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={selected.has(item.id)}
+                    onChange={() => toggleOne(item.id)}
+                  />
+                  Select
+                </label>
+              </div>
               <div className="flex h-28 items-center justify-center overflow-hidden rounded-xl bg-surface-muted text-sm text-muted">
                 {item.sourceUrl?.startsWith("http") ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -274,7 +448,9 @@ export default function MediaPage() {
                           setMessage("Image link copied.");
                           setError("");
                         } catch {
-                          setError("Could not copy link. Copy manually from the URL.");
+                          setError(
+                            "Could not copy link. Copy manually from the URL.",
+                          );
                         }
                       }}
                     >
@@ -304,7 +480,10 @@ export default function MediaPage() {
                 </div>
               </div>
               {item.sourceUrl?.startsWith("http") ? (
-                <p className="mt-2 truncate text-[11px] text-muted" title={item.sourceUrl}>
+                <p
+                  className="mt-2 truncate text-[11px] text-muted"
+                  title={item.sourceUrl}
+                >
                   {item.sourceUrl}
                 </p>
               ) : null}

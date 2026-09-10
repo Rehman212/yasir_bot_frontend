@@ -444,6 +444,11 @@ export const mediaApi = {
   },
   retry: (id: string) => api(`/media/${id}/retry`, { method: "POST" }),
   remove: (id: string) => api(`/media/${id}`, { method: "DELETE" }),
+  removeMany: (ids: string[]) =>
+    api<{ data: { deleted: number; failed: number } }>("/media/bulk-delete", {
+      method: "POST",
+      body: { ids },
+    }),
 };
 
 export type MediaAsset = {
