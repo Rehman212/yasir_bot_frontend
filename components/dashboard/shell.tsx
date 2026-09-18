@@ -180,7 +180,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     if (!withTooltip) return link;
     return (
-      <Tooltip label={item.label} disabled={showLabel}>
+      <Tooltip label={item.label} disabled={showLabel} className="flex w-full">
         {link}
       </Tooltip>
     );
@@ -213,11 +213,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           Logout
         </button>
       ) : (
-        <Tooltip label="Logout">
+        <Tooltip label="Logout" className="mt-6 flex w-full">
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-6 flex w-full items-center justify-center rounded-lg py-2.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
+            className="flex w-full items-center justify-center rounded-lg py-2.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
             aria-label="Logout"
           >
             <LogOut className="h-[18px] w-[18px]" />
