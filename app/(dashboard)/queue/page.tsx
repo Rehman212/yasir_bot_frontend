@@ -540,7 +540,7 @@ export default function QueuePage() {
                 </option>
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}
+                    {s.name} — {s.platform === "SHOPIFY" ? "Shopify" : "WordPress"}
                   </option>
                 ))}
               </Select>
