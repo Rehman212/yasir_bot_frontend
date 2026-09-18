@@ -160,6 +160,35 @@ export default function QueuePage() {
     }
   }
 
+  async function onCancelAll() {
+    const pending = jobs.filter((j) =>
+      ["WAITING", "DELAYED", "PAUSED", "ACTIVE"].includes(j.status),
+    ).length;
+    if (pending === 0) {
+      setMessage("No jobs to cancel");
+      return;
+    }
+    const ok =
+      typeof window === "undefined" ||
+      window.confirm(
+        `Cancel all ${pending} queued/scheduled job(s)? They will not publish.`,
+      );
+    if (!ok) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await queueApi.cancelAll();
+      setMessage(
+        `Cancelled ${res.data.cancelled} of ${res.data.total} job(s)`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Cancel all failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function setSectionPage(sectionKey: string, page: number) {
     setPages((prev) => ({ ...prev, [sectionKey]: page }));
   }
@@ -288,10 +317,23 @@ export default function QueuePage() {
             return (
               <Card key={section.key} className="flex flex-col p-5">
                 <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="font-semibold">{section.label}</h2>
-                  <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-muted">
-                    {items.length}
-                  </span>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h2 className="font-semibold">{section.label}</h2>
+                    <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-muted">
+                      {items.length}
+                    </span>
+                  </div>
+                  {section.key === "Scheduled" && items.length > 0 ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="danger"
+                      disabled={busy}
+                      onClick={() => void onCancelAll()}
+                    >
+                      {busy ? "Cancelling…" : "Cancel all"}
+                    </Button>
+                  ) : null}
                 </div>
                 {items.length === 0 ? (
                   <p className="text-sm text-muted">No jobs in this section.</p>

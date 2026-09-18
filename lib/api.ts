@@ -519,6 +519,10 @@ export const queueApi = {
   resume: () => api("/queue/resume-all", { method: "POST" }),
   retry: (id: string) => api(`/queue/${id}/retry`, { method: "POST" }),
   cancel: (id: string) => api(`/queue/${id}/cancel`, { method: "POST" }),
+  cancelAll: () =>
+    api<{ data: { cancelled: number; total: number } }>("/queue/cancel-all", {
+      method: "POST",
+    }),
 };
 
 export const publishingApi = {
