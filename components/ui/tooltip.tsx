@@ -17,7 +17,7 @@ export function Tooltip({
   if (disabled) return <>{children}</>;
 
   return (
-    <span className="group/tip relative inline-flex">
+    <span className="group/tip relative flex w-full">
       {children}
       <span
         role="tooltip"

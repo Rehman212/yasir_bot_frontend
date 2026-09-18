@@ -156,7 +156,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         href={item.href}
         onClick={() => setMobileOpen(false)}
         className={cn(
-          "group flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
+          "group flex w-full items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
           showLabel ? "gap-3 px-3" : "justify-center px-0",
           active
             ? "bg-gradient-to-r from-[#0b3d91] to-[#087990] text-white shadow-lg shadow-cyan-500/10"
@@ -187,7 +187,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   const DesktopNav = ({ showLabel }: { showLabel: boolean }) => (
-    <nav className={cn("space-y-0.5", showLabel ? "px-3" : "px-2")}>
+    <nav className={cn("flex flex-col space-y-0.5", showLabel ? "px-3" : "px-2")}>
       {showLabel ? (
         <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
           Workspace
