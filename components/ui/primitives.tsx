@@ -41,7 +41,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)]",
+        "rounded-2xl border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow duration-300",
         className,
       )}
     >

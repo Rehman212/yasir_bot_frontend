@@ -1,28 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f0f3f6;
-  --foreground: #1b2838;
+  /* Workspace */
+  --background: #e8edf5;
+  --foreground: #0b1220;
   --surface: #ffffff;
-  --surface-muted: #f7f9fb;
-  --brand: #1a5f7a;
-  --brand-hover: #154c62;
-  --brand-soft: #e6f1f5;
-  --accent: #2a9d8f;
-  --accent-soft: #e6f6f3;
-  --muted: #5a6b7d;
-  --border: #d8e0e8;
-  --border-strong: #c2ccd6;
-  --success: #0f766e;
-  --success-soft: #e6f5f3;
-  --warning: #b45309;
-  --warning-soft: #fef3e7;
-  --danger: #b91c1c;
-  --danger-soft: #fdecec;
-  --ring: rgba(26, 95, 122, 0.28);
-  --shadow-sm: 0 1px 2px rgba(27, 40, 56, 0.05);
-  --shadow-md: 0 8px 24px rgba(27, 40, 56, 0.08);
-  --shadow-lg: 0 18px 48px rgba(27, 40, 56, 0.12);
+  --surface-muted: #f1f4fa;
+
+  /* Brand — deep ink + signal cyan */
+  --brand: #0b3d91;
+  --brand-hover: #082e6e;
+  --brand-soft: #e8effc;
+  --accent: #00b4d8;
+  --accent-soft: #e0f7fc;
+
+  --muted: #5b6b82;
+  --border: #d5dde9;
+  --border-strong: #b8c4d6;
+
+  --success: #0d9488;
+  --success-soft: #e6faf7;
+  --warning: #d97706;
+  --warning-soft: #fff7ed;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+
+  --ring: rgba(0, 180, 216, 0.35);
+  --shadow-sm: 0 1px 2px rgba(11, 18, 32, 0.05);
+  --shadow-md: 0 10px 28px rgba(11, 18, 32, 0.08);
+  --shadow-lg: 0 22px 50px rgba(11, 18, 32, 0.12);
+
+  /* Dashboard chrome */
+  --sidebar: #070d1a;
+  --sidebar-elevated: #0f1729;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-active: #ffffff;
+  --topbar: rgba(255, 255, 255, 0.82);
 }
 
 @theme inline {
@@ -63,14 +76,14 @@ body {
 }
 
 ::selection {
-  background: var(--brand-soft);
+  background: var(--accent-soft);
   color: var(--brand);
 }
 
 @keyframes fade-up {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -97,12 +110,21 @@ body {
   }
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .animate-fade-up {
-  animation: fade-up 0.7s ease-out both;
+  animation: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-fade-in {
-  animation: fade-in 0.6s ease-out both;
+  animation: fade-in 0.5s ease-out both;
 }
 
 .animate-float {
@@ -110,32 +132,53 @@ body {
 }
 
 .delay-100 {
-  animation-delay: 0.1s;
+  animation-delay: 0.08s;
 }
 
 .delay-200 {
-  animation-delay: 0.2s;
+  animation-delay: 0.16s;
 }
 
 .delay-300 {
-  animation-delay: 0.3s;
+  animation-delay: 0.24s;
 }
 
 .delay-400 {
-  animation-delay: 0.4s;
+  animation-delay: 0.32s;
 }
 
 .bg-mesh {
   background-color: var(--background);
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(26, 95, 122, 0.12), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(42, 157, 143, 0.1), transparent),
-    linear-gradient(180deg, #eef2f6 0%, #f0f3f6 40%, #f5f7f9 100%);
+    radial-gradient(ellipse 70% 45% at 0% 0%, rgba(0, 180, 216, 0.16), transparent),
+    radial-gradient(ellipse 55% 40% at 100% 0%, rgba(11, 61, 145, 0.12), transparent),
+    linear-gradient(180deg, #eef2f9 0%, #e8edf5 45%, #e6ebf4 100%);
 }
 
 .bg-auth {
-  background-color: #eef2f6;
+  background-color: #e8edf5;
   background-image:
-    radial-gradient(ellipse 70% 50% at 10% 20%, rgba(26, 95, 122, 0.14), transparent),
-    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(42, 157, 143, 0.12), transparent);
+    radial-gradient(ellipse 70% 50% at 10% 15%, rgba(0, 180, 216, 0.18), transparent),
+    radial-gradient(ellipse 50% 40% at 90% 85%, rgba(11, 61, 145, 0.14), transparent);
+}
+
+.bg-dashboard {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 50% 35% at 85% -5%, rgba(0, 180, 216, 0.14), transparent),
+    radial-gradient(ellipse 40% 30% at 10% 0%, rgba(11, 61, 145, 0.08), transparent);
+}
+
+.stat-card-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand), var(--accent));
+  opacity: 0.9;
 }

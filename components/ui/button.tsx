@@ -13,9 +13,9 @@ type ButtonProps = {
 
 const variants = {
   primary:
-    "bg-brand text-white hover:bg-brand-hover shadow-sm border border-transparent",
+    "bg-brand text-white hover:bg-brand-hover shadow-md shadow-brand/20 border border-transparent",
   secondary:
-    "bg-white text-foreground border border-border hover:bg-surface-muted shadow-sm",
+    "bg-white text-foreground border border-border hover:bg-surface-muted hover:border-border-strong shadow-sm",
   outline:
     "bg-transparent text-brand border border-brand/30 hover:bg-brand-soft",
   ghost: "bg-transparent text-muted hover:text-foreground hover:bg-surface-muted",
