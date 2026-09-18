@@ -304,6 +304,7 @@ export type AdminUser = {
   role: "USER" | "ADMIN";
   status: string;
   deniedFeatures?: string[];
+  expiresAt?: string | null;
   createdAt?: string;
   subscription?: { plan?: string; status?: string; articlesUsed?: number } | null;
   _count?: { sites?: number; articles?: number };
@@ -328,7 +329,12 @@ export const adminApi = {
     password: string;
     role?: "USER" | "ADMIN";
     deniedFeatures?: string[];
+    expiryDays?: number | null;
   }) => api<{ data: AdminUser }>("/admin/users", { method: "POST", body }),
+  deleteUser: (id: string) =>
+    api<{ data: { deleted: boolean } }>(`/admin/users/${id}`, {
+      method: "DELETE",
+    }),
   updateRole: (id: string, role: "USER" | "ADMIN") =>
     api<{ data: AdminUser }>(`/admin/users/${id}/role`, {
       method: "PATCH",

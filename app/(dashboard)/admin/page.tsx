@@ -28,6 +28,30 @@ const FEATURE_LABELS: Record<string, string> = {
   settings: "Settings",
 };
 
+const EXPIRY_PRESETS = [
+  { value: "never", label: "No expiry" },
+  { value: "1", label: "1 day" },
+  { value: "5", label: "5 days" },
+  { value: "10", label: "10 days" },
+  { value: "20", label: "20 days" },
+  { value: "30", label: "30 days" },
+  { value: "custom", label: "Custom" },
+] as const;
+
+function formatExpiry(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const date = new Date(expiresAt);
+  if (Number.isNaN(date.getTime())) return null;
+  const expired = date.getTime() <= Date.now();
+  return {
+    expired,
+    label: date.toLocaleString(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+  };
+}
+
 export default function AdminPage() {
   const router = useRouter();
   const [me, setMe] = useState<UserProfile | null>(null);
@@ -35,12 +59,15 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"USER" | "ADMIN">("USER");
   const [denied, setDenied] = useState<string[]>([]);
+  const [expiryPreset, setExpiryPreset] = useState<string>("never");
+  const [customDays, setCustomDays] = useState("7");
 
   const [companyName, setCompanyName] = useState("");
   const [companyUrl, setCompanyUrl] = useState("");
@@ -111,28 +138,48 @@ export default function AdminPage() {
     );
   }
 
+  function resolveExpiryDays(): number | null {
+    if (expiryPreset === "never") return null;
+    if (expiryPreset === "custom") {
+      const days = Number(customDays);
+      if (!Number.isFinite(days) || days < 1) {
+        throw new Error("Custom expiry must be at least 1 day");
+      }
+      return Math.floor(days);
+    }
+    return Number(expiryPreset);
+  }
+
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
     setMessage("");
     try {
+      const expiryDays = resolveExpiryDays();
       await adminApi.createUser({
         name,
         email,
         password,
         role,
         deniedFeatures: role === "ADMIN" ? [] : denied,
+        expiryDays,
       });
       setName("");
       setEmail("");
       setPassword("");
       setRole("USER");
       setDenied([]);
-      setMessage("User created.");
+      setExpiryPreset("never");
+      setCustomDays("7");
+      setMessage(
+        expiryDays
+          ? `User created. Expires in ${expiryDays} day${expiryDays === 1 ? "" : "s"}.`
+          : "User created.",
+      );
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Create failed");
+      setError(err instanceof ApiError ? err.message : (err as Error).message || "Create failed");
     } finally {
       setLoading(false);
     }
@@ -145,6 +192,30 @@ export default function AdminPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Role update failed");
+    }
+  }
+
+  async function deleteUser(user: AdminUser) {
+    if (me && user.id === me.id) {
+      setError("You cannot delete your own account");
+      return;
+    }
+    const ok = window.confirm(
+      `Delete user "${user.name}" (${user.email})? They will lose access immediately.`,
+    );
+    if (!ok) return;
+
+    setDeletingId(user.id);
+    setError("");
+    setMessage("");
+    try {
+      await adminApi.deleteUser(user.id);
+      setMessage(`Deleted ${user.email}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Delete failed");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -171,7 +242,8 @@ export default function AdminPage() {
           Admin
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Create users, promote admins, and deny menu features per user.
+          Create users, set expiry, promote admins, and deny menu features per
+          user.
         </p>
       </div>
 
@@ -266,6 +338,38 @@ export default function AdminPage() {
             <option value="ADMIN">Admin</option>
           </Select>
 
+          <Select
+            label="Set expiry"
+            value={expiryPreset}
+            onChange={(e) => setExpiryPreset(e.target.value)}
+          >
+            {EXPIRY_PRESETS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+
+          {expiryPreset === "custom" ? (
+            <Input
+              label="Custom days"
+              type="number"
+              min={1}
+              max={3650}
+              value={customDays}
+              onChange={(e) => setCustomDays(e.target.value)}
+              required
+            />
+          ) : (
+            <div className="flex items-end">
+              <p className="pb-2 text-sm text-muted">
+                {expiryPreset === "never"
+                  ? "Account will not expire automatically."
+                  : `Access ends after ${expiryPreset} day${expiryPreset === "1" ? "" : "s"}.`}
+              </p>
+            </div>
+          )}
+
           {role === "USER" ? (
             <div className="md:col-span-2">
               <p className="mb-2 text-sm font-medium">Deny access to</p>
@@ -300,77 +404,107 @@ export default function AdminPage() {
           <h2 className="font-semibold">Users</h2>
         </div>
         <div className="divide-y divide-border">
-          {users.map((user) => (
-            <div key={user.id} className="space-y-3 px-6 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium">
-                    {user.name}{" "}
-                    <StatusBadge
-                      status={user.role === "ADMIN" ? "CONNECTED" : "PENDING"}
-                    />
-                  </p>
-                  <p className="text-sm text-muted">{user.email}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {user.role === "ADMIN" ? (
+          {users.map((user) => {
+            const expiry = formatExpiry(user.expiresAt);
+            const isSelf = me?.id === user.id;
+            return (
+              <div key={user.id} className="space-y-3 px-6 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">
+                      {user.name}{" "}
+                      <StatusBadge
+                        status={
+                          user.role === "ADMIN"
+                            ? "CONNECTED"
+                            : expiry?.expired || user.status === "SUSPENDED"
+                              ? "FAILED"
+                              : "PENDING"
+                        }
+                      />
+                    </p>
+                    <p className="text-sm text-muted">{user.email}</p>
+                    {expiry ? (
+                      <p
+                        className={`mt-1 text-xs ${
+                          expiry.expired ? "text-danger" : "text-muted"
+                        }`}
+                      >
+                        {expiry.expired ? "Expired" : "Expires"} {expiry.label}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted">No expiry</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {user.role === "ADMIN" ? (
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        onClick={() => setUserRole(user.id, "USER")}
+                        disabled={isSelf}
+                      >
+                        Demote to user
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => setUserRole(user.id, "ADMIN")}
+                      >
+                        Make admin
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       type="button"
-                      onClick={() => setUserRole(user.id, "USER")}
+                      onClick={() => deleteUser(user)}
+                      disabled={isSelf || deletingId === user.id}
                     >
-                      Demote to user
+                      {deletingId === user.id ? "Deleting…" : "Delete user"}
                     </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      onClick={() => setUserRole(user.id, "ADMIN")}
-                    >
-                      Make admin
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {user.role !== "ADMIN" ? (
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
-                    Denied features
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {APP_FEATURES.map((feature) => {
-                      const checked = (user.deniedFeatures || []).includes(
-                        feature,
-                      );
-                      return (
-                        <label
-                          key={feature}
-                          className="flex items-center gap-2 text-sm text-muted"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              const current = user.deniedFeatures || [];
-                              const next = checked
-                                ? current.filter((f) => f !== feature)
-                                : [...current, feature];
-                              savePermissions(user, next);
-                            }}
-                          />
-                          {FEATURE_LABELS[feature] || feature}
-                        </label>
-                      );
-                    })}
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-muted">
-                  Admins have full access to every option.
-                </p>
-              )}
-            </div>
-          ))}
+
+                {user.role !== "ADMIN" ? (
+                  <div>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted">
+                      Denied features
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {APP_FEATURES.map((feature) => {
+                        const checked = (user.deniedFeatures || []).includes(
+                          feature,
+                        );
+                        return (
+                          <label
+                            key={feature}
+                            className="flex items-center gap-2 text-sm text-muted"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const current = user.deniedFeatures || [];
+                                const next = checked
+                                  ? current.filter((f) => f !== feature)
+                                  : [...current, feature];
+                                savePermissions(user, next);
+                              }}
+                            />
+                            {FEATURE_LABELS[feature] || feature}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted">
+                    Admins have full access to every option.
+                  </p>
+                )}
+              </div>
+            );
+          })}
           {users.length === 0 ? (
             <p className="px-6 py-8 text-sm text-muted">No users yet.</p>
           ) : null}
