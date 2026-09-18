@@ -17,6 +17,8 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+const PAGE_SIZE = 5;
+
 const SECTIONS: { key: string; statuses: string[]; label: string }[] = [
   { key: "Waiting", statuses: ["WAITING"], label: "Waiting / Queue" },
   { key: "Scheduled", statuses: ["DELAYED", "PAUSED"], label: "Scheduled" },
@@ -65,6 +67,8 @@ export default function QueuePage() {
   const [message, setMessage] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [pages, setPages] = useState<Record<string, number>>({});
 
   const [file, setFile] = useState<File | null>(null);
   const [siteId, setSiteId] = useState("");
@@ -139,12 +143,25 @@ export default function QueuePage() {
   }
 
   async function onCancel(id: string) {
+    const ok =
+      typeof window === "undefined" ||
+      window.confirm("Cancel this scheduled job? It will not publish.");
+    if (!ok) return;
+    setCancellingId(id);
+    setError("");
     try {
       await queueApi.cancel(id);
+      setMessage("Job cancelled");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Cancel failed");
+    } finally {
+      setCancellingId(null);
     }
+  }
+
+  function setSectionPage(sectionKey: string, page: number) {
+    setPages((prev) => ({ ...prev, [sectionKey]: page }));
   }
 
   async function submitEnqueue(e: React.FormEvent) {
@@ -263,8 +280,13 @@ export default function QueuePage() {
         <div className="grid gap-4 lg:grid-cols-2">
           {SECTIONS.map((section) => {
             const items = grouped[section.key] || [];
+            const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+            const currentPage = Math.min(pages[section.key] || 1, totalPages);
+            const start = (currentPage - 1) * PAGE_SIZE;
+            const pageItems = items.slice(start, start + PAGE_SIZE);
+
             return (
-              <Card key={section.key} className="p-5">
+              <Card key={section.key} className="flex flex-col p-5">
                 <div className="mb-4 flex items-center justify-between gap-2">
                   <h2 className="font-semibold">{section.label}</h2>
                   <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-semibold text-muted">
@@ -274,105 +296,157 @@ export default function QueuePage() {
                 {items.length === 0 ? (
                   <p className="text-sm text-muted">No jobs in this section.</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {items.map((item) => {
-                      const when =
-                        formatWhen(item.scheduledAt) ||
-                        formatWhen(item.article?.publishAt);
-                      return (
-                        <li
-                          key={item.id}
-                          className="rounded-xl border border-border bg-surface-muted/80 px-3 py-3 text-sm"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="font-medium text-foreground">
-                                {item.article?.title || "Untitled article"}
-                              </p>
-                              <p className="mt-0.5 text-muted">
-                                {item.site?.name || "Unknown site"}
-                              </p>
+                  <>
+                    <ul className="min-h-0 flex-1 space-y-3">
+                      {pageItems.map((item) => {
+                        const when =
+                          formatWhen(item.scheduledAt) ||
+                          formatWhen(item.article?.publishAt);
+                        const canCancel = [
+                          "WAITING",
+                          "DELAYED",
+                          "PAUSED",
+                          "ACTIVE",
+                        ].includes(item.status);
+                        return (
+                          <li
+                            key={item.id}
+                            className="rounded-xl border border-border bg-surface-muted/80 px-3 py-3 text-sm"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-medium text-foreground">
+                                  {item.article?.title || "Untitled article"}
+                                </p>
+                                <p className="mt-0.5 text-muted">
+                                  {item.site?.name || "Unknown site"}
+                                </p>
+                              </div>
+                              <StatusBadge status={statusLabel(item.status)} />
                             </div>
-                            <StatusBadge status={statusLabel(item.status)} />
-                          </div>
 
-                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                            <span
-                              className={cn(
-                                "font-medium",
-                                item.status === "DELAYED" ||
-                                  item.status === "WAITING"
-                                  ? "text-brand"
-                                  : "",
-                              )}
-                            >
-                              Status: {statusLabel(item.status)}
-                            </span>
-                            {when ? (
-                              <span>
-                                {item.status === "DELAYED" ||
-                                item.status === "WAITING"
-                                  ? "Scheduled for "
-                                  : "Target "}
-                                <strong className="text-foreground">{when}</strong>
+                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                              <span
+                                className={cn(
+                                  "font-medium",
+                                  item.status === "DELAYED" ||
+                                    item.status === "WAITING"
+                                    ? "text-brand"
+                                    : "",
+                                )}
+                              >
+                                Status: {statusLabel(item.status)}
                               </span>
-                            ) : null}
-                            {item.error ? (
-                              <span className="text-danger">{item.error}</span>
-                            ) : null}
-                          </div>
+                              {when ? (
+                                <span>
+                                  {item.status === "DELAYED" ||
+                                  item.status === "WAITING"
+                                    ? "Scheduled for "
+                                    : "Target "}
+                                  <strong className="text-foreground">{when}</strong>
+                                </span>
+                              ) : null}
+                              {item.error ? (
+                                <span className="text-danger">{item.error}</span>
+                              ) : null}
+                            </div>
 
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {item.error ? (
-                              <Button size="sm" variant="ghost" type="button" disabled>
-                                View error
-                              </Button>
-                            ) : null}
-                            {(item.status === "FAILED" ||
-                              item.status === "CANCELLED") && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                type="button"
-                                onClick={() => void onRetry(item.id)}
-                              >
-                                Retry
-                              </Button>
-                            )}
-                            {["WAITING", "DELAYED", "PAUSED", "ACTIVE"].includes(
-                              item.status,
-                            ) ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                type="button"
-                                onClick={() => void onCancel(item.id)}
-                              >
-                                Cancel
-                              </Button>
-                            ) : null}
-                            {item.article?.wpUrl ? (
-                              <a
-                                href={item.article.wpUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-medium text-brand hover:underline"
-                              >
-                                View post
-                              </a>
-                            ) : item.articleId ? (
-                              <Link
-                                href={`/articles/${item.articleId}`}
-                                className="inline-flex h-8 items-center rounded-lg px-2.5 text-xs font-medium text-brand hover:underline"
-                              >
-                                Open article
-                              </Link>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.error ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  type="button"
+                                  disabled
+                                >
+                                  View error
+                                </Button>
+                              ) : null}
+                              {(item.status === "FAILED" ||
+                                item.status === "CANCELLED") && (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  type="button"
+                                  onClick={() => void onRetry(item.id)}
+                                >
+                                  Retry
+                                </Button>
+                              )}
+                              {canCancel ? (
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  type="button"
+                                  disabled={cancellingId === item.id}
+                                  onClick={() => void onCancel(item.id)}
+                                >
+                                  {cancellingId === item.id
+                                    ? "Cancelling…"
+                                    : item.status === "DELAYED"
+                                      ? "Cancel schedule"
+                                      : "Cancel job"}
+                                </Button>
+                              ) : null}
+                              {item.article?.wpUrl ? (
+                                <a
+                                  href={item.article.wpUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex h-8 items-center rounded-lg border border-border bg-white px-2.5 text-xs font-medium text-foreground hover:border-brand/40"
+                                >
+                                  View post
+                                </a>
+                              ) : item.articleId ? (
+                                <Link
+                                  href={`/articles/${item.articleId}`}
+                                  className="inline-flex h-8 items-center rounded-lg border border-border bg-white px-2.5 text-xs font-medium text-foreground hover:border-brand/40"
+                                >
+                                  Open article
+                                </Link>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {totalPages > 1 ? (
+                      <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/70 pt-3">
+                        <p className="text-xs text-muted">
+                          {start + 1}–{Math.min(start + PAGE_SIZE, items.length)}{" "}
+                          of {items.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={currentPage <= 1}
+                            onClick={() =>
+                              setSectionPage(section.key, currentPage - 1)
+                            }
+                          >
+                            Prev
+                          </Button>
+                          <span className="text-xs font-medium text-muted">
+                            {currentPage} / {totalPages}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={currentPage >= totalPages}
+                            onClick={() =>
+                              setSectionPage(section.key, currentPage + 1)
+                            }
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </Card>
             );
