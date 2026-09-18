@@ -83,8 +83,8 @@ export default function SitesPage() {
             Websites
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Connect WordPress now — Shopify publishing is next. Manage
-            connections, totals, and status here.
+            Connect WordPress or Shopify. Manage status, blog target, and
+            publish totals here.
           </p>
         </div>
         <Button href="/sites/new">
@@ -119,7 +119,7 @@ export default function SitesPage() {
               {sites.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-muted" colSpan={7}>
-                    No websites yet. Add a WordPress site — Shopify coming soon.
+                    No websites yet. Add WordPress or Shopify.
                   </td>
                 </tr>
               ) : (
@@ -131,7 +131,13 @@ export default function SitesPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone="brand">WordPress</Badge>
+                      <Badge
+                        tone={
+                          site.platform === "SHOPIFY" ? "accent" : "brand"
+                        }
+                      >
+                        {site.platform === "SHOPIFY" ? "Shopify" : "WordPress"}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-muted">
                       {domainFromUrl(site.url)}

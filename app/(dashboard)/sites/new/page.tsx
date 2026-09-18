@@ -17,34 +17,62 @@ export default function NewSitePage() {
   const [url, setUrl] = useState("");
   const [username, setUsername] = useState("");
   const [applicationPassword, setApplicationPassword] = useState("");
+  const [storeDomain, setStoreDomain] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [blogId, setBlogId] = useState("");
+  const [blogs, setBlogs] = useState<{ id: string; title: string; handle: string }[]>(
+    [],
+  );
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function save(testOnly = false) {
-    if (platform !== "wordpress") {
-      setError("Shopify connect is coming soon. Choose WordPress for now.");
-      return;
-    }
     setError("");
     setMessage("");
     setLoading(true);
     try {
-      const res = (await sitesApi.create({
+      if (platform === "shopify") {
+        const res = await sitesApi.create({
+          name,
+          platform: "SHOPIFY",
+          storeDomain: storeDomain.trim(),
+          accessToken: accessToken.trim(),
+          blogId: blogId.trim() || undefined,
+        });
+
+        if (res.blogs?.length) setBlogs(res.blogs);
+
+        if (!res.connected) {
+          setError(
+            res.warning ||
+              "Saved but Shopify rejected the token. Check store domain + Admin API access token.",
+          );
+          setMessage(`Saved as ${res.data.status}`);
+          return;
+        }
+
+        setMessage(
+          res.data.blogId
+            ? `Connected. Using blog ID ${res.data.blogId}.`
+            : "Connected successfully.",
+        );
+        if (!testOnly) router.push(`/sites/${res.data.id}`);
+        return;
+      }
+
+      const res = await sitesApi.create({
         name,
+        platform: "WORDPRESS",
         url: url.replace(/\/+$/, ""),
         username: username.trim(),
         applicationPassword: applicationPassword.replace(/\s+/g, ""),
-      })) as {
-        data: { status: string; id: string };
-        warning?: string;
-        connected?: boolean;
-      };
+      });
 
       if (res.data.status !== "CONNECTED" || res.connected === false) {
         setError(
           res.warning ||
-            "Saved as DISCONNECTED — WordPress rejected the login. Check username + Application Password below.",
+            "Saved as DISCONNECTED — WordPress rejected the login. Check username + Application Password.",
         );
         setMessage(`Saved as ${res.data.status}`);
         return;
@@ -69,8 +97,7 @@ export default function NewSitePage() {
           Add website
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Pick a platform, then connect credentials so SheetPress can publish
-          posts for you.
+          Connect WordPress or Shopify so SheetPress can publish blog posts.
         </p>
       </div>
 
@@ -80,6 +107,7 @@ export default function NewSitePage() {
           onClick={() => {
             setPlatform("wordpress");
             setError("");
+            setMessage("");
           }}
           className={cn(
             "rounded-2xl border p-4 text-left transition",
@@ -93,7 +121,7 @@ export default function NewSitePage() {
             <Badge tone="success">Available</Badge>
           </div>
           <p className="mt-1 text-sm text-muted">
-            Connect via Application Password and publish blog posts.
+            Application Password → publish posts.
           </p>
         </button>
 
@@ -102,6 +130,7 @@ export default function NewSitePage() {
           onClick={() => {
             setPlatform("shopify");
             setError("");
+            setMessage("");
           }}
           className={cn(
             "rounded-2xl border p-4 text-left transition",
@@ -112,29 +141,94 @@ export default function NewSitePage() {
         >
           <div className="flex items-center justify-between gap-2">
             <p className="font-semibold text-foreground">Shopify</p>
-            <Badge tone="warning">Coming soon</Badge>
+            <Badge tone="accent">Available</Badge>
           </div>
           <p className="mt-1 text-sm text-muted">
-            Publish to Shopify Blog via Admin API (in development).
+            Admin API token → publish to Shopify Blog.
           </p>
         </button>
       </div>
 
       {platform === "shopify" ? (
-        <Card className="space-y-3 border-warning/25 bg-warning-soft/40 p-6">
-          <h2 className="font-semibold text-foreground">Shopify is next</h2>
-          <p className="text-sm text-muted">
-            Yes — Shopify blogs can work the same flow (sheet → queue → publish).
-            It needs a separate Shopify Admin API / OAuth integration. WordPress
-            stays fully working meanwhile.
-          </p>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setPlatform("wordpress")}
-          >
-            Use WordPress for now
-          </Button>
+        <Card className="space-y-4 p-6">
+          <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-muted">
+            <p className="font-medium text-foreground">How to connect Shopify</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4">
+              <li>Shopify Admin → Settings → Apps and sales channels → Develop apps</li>
+              <li>Create an app → Configure Admin API scopes</li>
+              <li>
+                Enable at least <code>read_content</code> and{" "}
+                <code>write_content</code>
+              </li>
+              <li>Install app → copy <strong>Admin API access token</strong></li>
+              <li>
+                Store domain like <code>my-store.myshopify.com</code>
+              </li>
+            </ol>
+          </div>
+          <Input
+            label="Website name"
+            placeholder="My Shopify Blog"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+          <Input
+            label="Store domain"
+            placeholder="my-store.myshopify.com"
+            hint="myshopify.com domain (or paste full https URL)"
+            value={storeDomain}
+            onChange={(e) => setStoreDomain(e.target.value)}
+            required
+          />
+          <Input
+            label="Admin API access token"
+            type="password"
+            hint="Starts with shpat_… from your custom app"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            required
+          />
+          <Input
+            label="Blog ID (optional)"
+            placeholder="Auto-select first blog"
+            hint="Leave empty to use the first blog on the store"
+            value={blogId}
+            onChange={(e) => setBlogId(e.target.value)}
+          />
+          {blogs.length > 0 ? (
+            <div className="rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm">
+              <p className="font-medium text-foreground">Blogs on this shop</p>
+              <ul className="mt-2 space-y-1 text-muted">
+                {blogs.map((b) => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      className="text-left hover:text-brand"
+                      onClick={() => setBlogId(b.id)}
+                    >
+                      {b.title} — <code>{b.id}</code> (/{b.handle})
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          {message ? <p className="text-sm text-brand">{message}</p> : null}
+          <div className="flex flex-wrap gap-3 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={loading}
+              onClick={() => save(true)}
+            >
+              Test & save
+            </Button>
+            <Button type="button" disabled={loading} onClick={() => save(false)}>
+              {loading ? "Saving…" : "Save connection"}
+            </Button>
+          </div>
         </Card>
       ) : (
         <Card className="space-y-4 p-6">
@@ -142,20 +236,14 @@ export default function NewSitePage() {
             <p className="font-medium text-foreground">How to connect WordPress</p>
             <ol className="mt-2 list-decimal space-y-1 pl-4">
               <li>
-                Username = your WP login username (top-right “Howdy, …”), e.g.{" "}
-                <code>Admin</code> — <strong>not</strong> the app password name
+                Username = your WP login username (top-right “Howdy, …”) —{" "}
+                <strong>not</strong> the app password name
               </li>
               <li>Users → Profile → Application Passwords</li>
               <li>
-                Name it <code>SheetPress</code> → Add → copy the{" "}
-                <strong>new generated password</strong> (xxxx xxxx xxxx xxxx)
+                Name it <code>SheetPress</code> → Add → copy the new password
               </li>
-              <li>Paste that password below (spaces optional)</li>
             </ol>
-            <p className="mt-2">
-              Site URL like <code>https://socialvelocityy.com</code> (no{" "}
-              <code>/wp-admin</code>).
-            </p>
           </div>
           <Input
             label="Website name"
@@ -174,7 +262,6 @@ export default function NewSitePage() {
           <Input
             label="WordPress username"
             placeholder="Admin"
-            hint="Your login username (Howdy, Admin) — not the Application Password name"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
@@ -182,7 +269,6 @@ export default function NewSitePage() {
           <Input
             label="Application password"
             type="password"
-            hint="Fresh password from Users → Profile → Application Passwords — not your wp-admin password"
             value={applicationPassword}
             onChange={(e) => setApplicationPassword(e.target.value)}
             required

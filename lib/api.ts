@@ -316,11 +316,20 @@ export const sitesApi = {
   get: (id: string) => api<{ data: WpSite }>(`/wordpress-sites/${id}`),
   create: (body: {
     name: string;
-    url: string;
-    username: string;
-    applicationPassword: string;
+    platform?: "WORDPRESS" | "SHOPIFY";
+    url?: string;
+    username?: string;
+    applicationPassword?: string;
+    storeDomain?: string;
+    accessToken?: string;
+    blogId?: string;
   }) =>
-    api<{ data: WpSite }>("/wordpress-sites", { method: "POST", body }),
+    api<{
+      data: WpSite;
+      connected?: boolean;
+      warning?: string;
+      blogs?: { id: string; title: string; handle: string }[];
+    }>("/wordpress-sites", { method: "POST", body }),
   update: (
     id: string,
     body: Partial<{
@@ -328,6 +337,9 @@ export const sitesApi = {
       url: string;
       username: string;
       applicationPassword: string;
+      storeDomain: string;
+      accessToken: string;
+      blogId: string;
     }>,
   ) =>
     api<{ data: WpSite }>(`/wordpress-sites/${id}`, {
@@ -335,10 +347,14 @@ export const sitesApi = {
       body,
     }),
   test: (id: string) =>
-    api<{ data: { connected?: boolean; site?: WpSite; info?: unknown } & Partial<WpSite> }>(
-      `/wordpress-sites/${id}/test-connection`,
-      { method: "POST" },
-    ),
+    api<{
+      data: {
+        connected?: boolean;
+        site?: WpSite;
+        info?: unknown;
+        blogs?: { id: string; title: string; handle: string }[];
+      } & Partial<WpSite>;
+    }>(`/wordpress-sites/${id}/test-connection`, { method: "POST" }),
   remove: (id: string) =>
     api(`/wordpress-sites/${id}`, { method: "DELETE" }),
   seoBridge: (siteId: string) =>
@@ -541,10 +557,17 @@ export type WpSite = {
   id: string;
   name: string;
   url: string;
+  platform?: "WORDPRESS" | "SHOPIFY";
   username?: string;
+  storeDomain?: string | null;
+  blogId?: string | null;
   status: string;
   publishedCount: number;
   lastConnectedAt?: string | null;
+  shopInfo?: {
+    shopName?: string;
+    blogs?: { id: string; title: string; handle: string }[];
+  } | null;
 };
 
 export type ArticleRow = {
