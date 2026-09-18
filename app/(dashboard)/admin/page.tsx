@@ -16,7 +16,7 @@ import {
 } from "@/lib/api";
 
 const FEATURE_LABELS: Record<string, string> = {
-  sites: "WordPress Sites",
+  sites: "Websites",
   import: "Import Articles",
   articles: "All Articles",
   queue: "Publishing Queue",

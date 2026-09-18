@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, StatusBadge } from "@/components/ui/primitives";
+import { Badge, Card, StatusBadge } from "@/components/ui/primitives";
 import { sitesApi, type WpSite, getAccessToken } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
@@ -60,7 +60,7 @@ export default function SitesPage() {
 
   async function removeSite(site: WpSite) {
     const ok = window.confirm(
-      `Remove “${site.name}”? This deletes the connection from SheetPress (not your WordPress site).`,
+      `Remove “${site.name}”? This deletes the connection from SheetPress (not your live website).`,
     );
     if (!ok) return;
     setBusyId(site.id);
@@ -80,10 +80,11 @@ export default function SitesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
-            WordPress Sites
+            Websites
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Manage connections, published totals, and reconnection status.
+            Connect WordPress now — Shopify publishing is next. Manage
+            connections, totals, and status here.
           </p>
         </div>
         <Button href="/sites/new">
@@ -101,6 +102,7 @@ export default function SitesPage() {
               <tr>
                 {[
                   "Website name",
+                  "Platform",
                   "Domain",
                   "Status",
                   "Published",
@@ -116,8 +118,8 @@ export default function SitesPage() {
             <tbody>
               {sites.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-muted" colSpan={6}>
-                    No sites yet. Add your first WordPress connection.
+                  <td className="px-4 py-6 text-muted" colSpan={7}>
+                    No websites yet. Add a WordPress site — Shopify coming soon.
                   </td>
                 </tr>
               ) : (
@@ -127,6 +129,9 @@ export default function SitesPage() {
                       <Link href={`/sites/${site.id}`} className="hover:text-brand">
                         {site.name}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone="brand">WordPress</Badge>
                     </td>
                     <td className="px-4 py-3 text-muted">
                       {domainFromUrl(site.url)}

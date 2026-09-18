@@ -39,7 +39,7 @@ import {
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, feature: null },
-  { href: "/sites", label: "WordPress Sites", icon: Globe2, feature: "sites" },
+  { href: "/sites", label: "Websites", icon: Globe2, feature: "sites" },
   { href: "/import", label: "Import Articles", icon: Import, feature: "import" },
   { href: "/articles", label: "All Articles", icon: FileText, feature: "articles" },
   { href: "/queue", label: "Publishing Queue", icon: ListOrdered, feature: "queue" },
