@@ -1,12 +1,15 @@
 export function getApiUrl(): string {
+  // Explicit override (e.g. local: http://localhost:4000/api)
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (
-    typeof window !== "undefined" &&
-    window.location.hostname.endsWith(".vercel.app")
-  ) {
-    return "https://yasir-bot-backend.vercel.app/api";
+  // Browser: same-origin /api → Vercel rewrite → AWS (avoids mixed content)
+  if (typeof window !== "undefined") {
+    return "/api";
+  }
+  // SSR on Vercel: hit this deployment's /api proxy
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/api`;
   }
   return "http://localhost:4000/api";
 }
