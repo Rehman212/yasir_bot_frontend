@@ -109,7 +109,11 @@ export default function CalendarPage() {
   const [jobs, setJobs] = useState<QueueRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<CalEvent | null>(null);
+  const [dayPopup, setDayPopup] = useState<{
+    date: Date;
+    events: CalEvent[];
+  } | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError("");
@@ -215,20 +219,61 @@ export default function CalendarPage() {
     return events.filter((e) => sameDay(e.at, day));
   }
 
-  function EventChip({ event }: { event: CalEvent }) {
+  function openDay(day: Date) {
+    const list = eventsOn(day);
+    if (list.length === 0) return;
+    setDayPopup({ date: day, events: list });
+  }
+
+  async function cancelJob(id: string) {
+    const ok =
+      typeof window === "undefined" ||
+      window.confirm("Cancel this job? It will not publish.");
+    if (!ok) return;
+    setCancellingId(id);
+    try {
+      await queueApi.cancel(id);
+      await load();
+      setDayPopup((prev) =>
+        prev
+          ? {
+              ...prev,
+              events: prev.events.filter((e) => e.id !== id),
+            }
+          : null,
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Cancel failed");
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
+  function DaySummaryChip({
+    day,
+    dayEvents,
+  }: {
+    day: Date;
+    dayEvents: CalEvent[];
+  }) {
+    if (dayEvents.length === 0) return null;
+    const first = dayEvents[0];
+    const active = dayEvents.filter((e) =>
+      ["WAITING", "DELAYED", "PAUSED", "ACTIVE"].includes(e.status),
+    ).length;
     return (
       <button
         type="button"
-        onClick={() => setSelected(event)}
+        onClick={() => openDay(day)}
         className={cn(
-          "w-full rounded-lg px-2 py-1 text-left text-[11px] font-medium shadow-sm transition hover:opacity-90",
-          statusTone(event.status),
+          "w-full rounded-lg px-2 py-1.5 text-left text-[11px] font-medium shadow-sm transition hover:opacity-90",
+          statusTone(first.status),
         )}
-        title={`${event.title} · ${event.statusLabel} · ${event.siteName} (${event.platform}) · ${formatTime(event.at)}`}
       >
-        <span className="line-clamp-1">{event.title}</span>
-        <span className="mt-0.5 block truncate text-[10px] opacity-90">
-          {event.statusLabel} · {formatTime(event.at)} · {event.platform}
+        <span className="line-clamp-1">{first.title}</span>
+        <span className="mt-0.5 block text-[10px] opacity-95">
+          {dayEvents.length} job{dayEvents.length === 1 ? "" : "s"}
+          {active > 0 ? ` · ${active} active` : ""} · click to open
         </span>
       </button>
     );
@@ -366,15 +411,8 @@ export default function CalendarPage() {
                   >
                     {cell.day}
                   </p>
-                  <div className="mt-1.5 space-y-1">
-                    {dayEvents.slice(0, 3).map((ev) => (
-                      <EventChip key={ev.id} event={ev} />
-                    ))}
-                    {dayEvents.length > 3 ? (
-                      <p className="px-1 text-[10px] font-medium text-muted">
-                        +{dayEvents.length - 3} more
-                      </p>
-                    ) : null}
+                  <div className="mt-1.5">
+                    <DaySummaryChip day={cell.date} dayEvents={dayEvents} />
                   </div>
                 </div>
               );
@@ -404,30 +442,17 @@ export default function CalendarPage() {
                   {dayEvents.length === 0 ? (
                     <p className="mt-2 text-sm text-muted">No jobs this day.</p>
                   ) : (
-                    <ul className="mt-3 space-y-2">
-                      {dayEvents.map((ev) => (
-                        <li
-                          key={ev.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/80 bg-surface-muted/60 px-3 py-2 text-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-medium">{ev.title}</p>
-                            <p className="text-xs text-muted">
-                              {ev.statusLabel} · {formatTime(ev.at)} ·{" "}
-                              {ev.siteName} ({ev.platform})
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            type="button"
-                            onClick={() => setSelected(ev)}
-                          >
-                            Details
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        type="button"
+                        onClick={() => openDay(day)}
+                      >
+                        View {dayEvents.length} job
+                        {dayEvents.length === 1 ? "" : "s"}
+                      </Button>
+                    </div>
                   )}
                 </div>
               );
@@ -446,79 +471,99 @@ export default function CalendarPage() {
             {eventsOn(dayFocus).length === 0 ? (
               <p className="text-sm text-muted">No jobs scheduled for today.</p>
             ) : (
-              eventsOn(dayFocus).map((ev) => (
-                <div
-                  key={ev.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-4 py-3"
-                >
-                  <div>
-                    <p className="font-semibold">{ev.title}</p>
-                    <p className="text-sm text-muted">
-                      {ev.statusLabel} · {formatTime(ev.at)} · {ev.siteName} (
-                      {ev.platform})
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    type="button"
-                    onClick={() => setSelected(ev)}
-                  >
-                    Open details
-                  </Button>
-                </div>
-              ))
+              <Button
+                size="sm"
+                type="button"
+                onClick={() => openDay(dayFocus)}
+              >
+                View {eventsOn(dayFocus).length} job
+                {eventsOn(dayFocus).length === 1 ? "" : "s"} for today
+              </Button>
             )}
           </div>
         )}
       </Card>
 
-      {selected ? (
+      {dayPopup ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
             className="absolute inset-0 bg-black/45 backdrop-blur-sm"
             aria-label="Close"
-            onClick={() => setSelected(null)}
+            onClick={() => setDayPopup(null)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-white p-6 shadow-2xl">
-            <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold">
-              {selected.title}
-            </h2>
-            <dl className="mt-4 space-y-2 text-sm">
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Status</dt>
-                <dd className="font-medium">{selected.statusLabel}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">When</dt>
-                <dd className="font-medium">
-                  {selected.at.toLocaleString(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-muted">Website</dt>
-                <dd className="font-medium text-right">
-                  {selected.siteName}
-                  <span className="block text-xs text-muted">
-                    {selected.platform}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <div className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl border border-border bg-white shadow-2xl">
+            <div className="border-b border-border px-5 py-4">
+              <h2 className="font-[family-name:var(--font-outfit)] text-lg font-semibold">
+                {dayPopup.date.toLocaleDateString(undefined, {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                {dayPopup.events.length} job
+                {dayPopup.events.length === 1 ? "" : "s"} on this day
+              </p>
+            </div>
+
+            <ul className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
+              {dayPopup.events.length === 0 ? (
+                <li className="text-sm text-muted">No jobs left for this day.</li>
+              ) : (
+                dayPopup.events.map((ev) => {
+                  const canCancel = [
+                    "WAITING",
+                    "DELAYED",
+                    "PAUSED",
+                    "ACTIVE",
+                  ].includes(ev.status);
+                  return (
+                    <li
+                      key={ev.id}
+                      className="rounded-xl border border-border bg-surface-muted/70 px-3 py-3 text-sm"
+                    >
+                      <p className="font-medium text-foreground">{ev.title}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        {ev.statusLabel} · {formatTime(ev.at)} · {ev.siteName} (
+                        {ev.platform})
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          href={`/articles/${ev.articleId}`}
+                        >
+                          Open article
+                        </Button>
+                        {canCancel ? (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            type="button"
+                            disabled={cancellingId === ev.id}
+                            onClick={() => void cancelJob(ev.id)}
+                          >
+                            {cancellingId === ev.id
+                              ? "Cancelling…"
+                              : "Cancel schedule"}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+
+            <div className="flex justify-end border-t border-border px-5 py-3">
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => setSelected(null)}
+                onClick={() => setDayPopup(null)}
               >
                 Close
-              </Button>
-              <Button href={`/articles/${selected.articleId}`} type="button">
-                Open article
               </Button>
             </div>
           </div>
