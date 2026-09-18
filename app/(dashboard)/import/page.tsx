@@ -267,7 +267,7 @@ export default function ImportPage() {
               >
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} ({s.status})
+                    {s.name} — {s.platform === "SHOPIFY" ? "Shopify" : "WordPress"} ({s.status})
                   </option>
                 ))}
               </Select>
