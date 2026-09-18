@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, X } from "lucide-react";
+import { Plus, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea, Select } from "@/components/ui/input";
+import { Input, Select } from "@/components/ui/input";
 import { Card, StatusBadge } from "@/components/ui/primitives";
+import { DownloadSampleSheetButton } from "@/components/download-sample-sheet-button";
 import {
   ApiError,
+  importsApi,
   queueApi,
   sitesApi,
   type QueueRow,
@@ -64,7 +66,7 @@ export default function QueuePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const [titlesText, setTitlesText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [siteId, setSiteId] = useState("");
   const [publishAt, setPublishAt] = useState("");
   const [intervalMinutes, setIntervalMinutes] = useState("0");
@@ -149,16 +151,12 @@ export default function QueuePage() {
     e.preventDefault();
     setError("");
     setMessage("");
-    const titles = titlesText
-      .split(/\r?\n/)
-      .map((t) => t.trim())
-      .filter(Boolean);
     if (!siteId) {
       setError("Select a website");
       return;
     }
-    if (titles.length === 0) {
-      setError("Paste at least one article title (one per line)");
+    if (!file) {
+      setError("Upload a CSV or Excel sheet (same format as Import Articles)");
       return;
     }
     if (!publishAt) {
@@ -168,27 +166,37 @@ export default function QueuePage() {
 
     setBusy(true);
     try {
+      const imported = await importsApi.upload(siteId, file);
+      const articleIds = (imported.data.articles || [])
+        .map((a) => a.id)
+        .filter(Boolean);
+
+      if (articleIds.length === 0) {
+        setError(
+          imported.data.errors?.length
+            ? `Import failed: ${imported.data.errors[0].message}`
+            : "No articles found in the sheet",
+        );
+        return;
+      }
+
       const scheduledAt = new Date(publishAt).toISOString();
-      const res = await queueApi.enqueueByTitles({
-        siteId,
-        titles,
+      const res = await queueApi.enqueue({
+        articleIds,
         scheduledAt,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
         intervalMinutes: Math.max(0, parseInt(intervalMinutes || "0", 10) || 0),
-        createMissing: true,
       });
 
-      const missing = res.data.resolved.filter((r) => r.error);
-      const created = res.data.resolved.filter((r) => r.created).length;
-      const queued = res.data.jobs.length;
+      const queued = res.data.jobs.filter((j) => !("error" in j && j.error)).length;
+      const importErrors = imported.data.errors?.length || 0;
 
       setMessage(
-        `${queued} job(s) scheduled for ${formatWhen(res.data.scheduledAt) || publishAt}` +
-          (created ? ` · ${created} new draft(s) created` : "") +
-          (missing.length ? ` · ${missing.length} skipped` : ""),
+        `Imported ${imported.data.imported} · ${queued} scheduled for ${formatWhen(scheduledAt) || publishAt}` +
+          (importErrors ? ` · ${importErrors} row error(s)` : ""),
       );
       setModalOpen(false);
-      setTitlesText("");
+      setFile(null);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to add to queue");
@@ -205,7 +213,7 @@ export default function QueuePage() {
             Publishing Queue
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Add articles by title, schedule a date, and auto-publish when due.
+            Upload a sheet, pick a date, and auto-publish when due.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -391,7 +399,8 @@ export default function QueuePage() {
                   Add article to queue
                 </h2>
                 <p className="mt-1 text-sm text-muted">
-                  Paste titles (one per line), pick a website and publish date.
+                  Upload the same CSV/Excel sheet as Import Articles, then set
+                  website and publish date.
                 </p>
               </div>
               <button
@@ -404,19 +413,6 @@ export default function QueuePage() {
             </div>
 
             <form className="mt-5 space-y-4" onSubmit={submitEnqueue}>
-              <Textarea
-                label="Article titles"
-                placeholder={"Complete SEO Guide for 2026\nRank Math Setup Checklist\n…"}
-                value={titlesText}
-                onChange={(e) => setTitlesText(e.target.value)}
-                className="min-h-36"
-                required
-              />
-              <p className="-mt-2 text-xs text-muted">
-                Matches existing articles on the site (case-insensitive). Missing
-                titles create drafts automatically.
-              </p>
-
               <Select
                 label="Website"
                 value={siteId}
@@ -432,6 +428,37 @@ export default function QueuePage() {
                   </option>
                 ))}
               </Select>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Article sheet
+                  </span>
+                  <DownloadSampleSheetButton size="sm" variant="ghost" />
+                </div>
+                <label
+                  className={cn(
+                    "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-4 py-8 text-center transition",
+                    file
+                      ? "border-brand bg-brand-soft/40"
+                      : "border-border bg-surface-muted/50 hover:border-brand/40",
+                  )}
+                >
+                  <Upload className="h-5 w-5 text-brand" />
+                  <span className="text-sm font-medium text-foreground">
+                    {file ? file.name : "Drop CSV / Excel or click to browse"}
+                  </span>
+                  <span className="text-xs text-muted">
+                    Same columns as Import Articles (Title, Content, …)
+                  </span>
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    className="sr-only"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
 
               <Input
                 label="Publish date & time"
@@ -459,7 +486,7 @@ export default function QueuePage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={busy}>
-                  {busy ? "Scheduling…" : "Add to queue"}
+                  {busy ? "Importing & scheduling…" : "Add to queue"}
                 </Button>
               </div>
             </form>

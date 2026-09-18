@@ -488,6 +488,7 @@ export const queueApi = {
     scheduledAt?: string;
     timezone?: string;
     delayMs?: number;
+    intervalMinutes?: number;
   }) =>
     api<{ data: { jobs: Array<Record<string, unknown>> } }>("/queue/enqueue", {
       method: "POST",
