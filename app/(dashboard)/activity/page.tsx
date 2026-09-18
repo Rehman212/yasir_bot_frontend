@@ -43,6 +43,8 @@ type FeedItem = {
   userLabel?: string;
 };
 
+const FEED_PAGE_SIZE = 10;
+
 const ACTION_FILTERS = [
   { value: "all", label: "All events" },
   { value: "IMPORT", label: "Imports" },
@@ -246,8 +248,7 @@ export default function ActivityPage() {
   const [audits, setAudits] = useState<AuditLogRow[]>([]);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [jobs, setJobs] = useState<QueueRow[]>([]);
-  const [meta, setMeta] = useState({ total: 0, page: 1, pages: 1 });
-  const [page, setPage] = useState(1);
+  const [feedPage, setFeedPage] = useState(1);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -258,12 +259,11 @@ export default function ActivityPage() {
     setError("");
     try {
       const [a, n, q] = await Promise.all([
-        auditLogsApi.list({ page: String(page), limit: "50" }),
+        auditLogsApi.list({ page: "1", limit: "100" }),
         notificationsApi.list().catch(() => ({ data: [] as NotificationRow[] })),
         queueApi.list().catch(() => ({ data: [] as QueueRow[] })),
       ]);
       setAudits(a.data || []);
-      setMeta(a.meta || { total: 0, page: 1, pages: 1 });
       setNotifications(n.data || []);
       setJobs(q.data || []);
     } catch (err) {
@@ -271,12 +271,17 @@ export default function ActivityPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setFeedPage(1);
+    setExpanded(null);
+  }, [filter, search]);
 
   const feed = useMemo(() => {
     const items: FeedItem[] = [
@@ -309,6 +314,10 @@ export default function ActivityPage() {
     });
   }, [audits, notifications, jobs, filter, search]);
 
+  const totalPages = Math.max(1, Math.ceil(feed.length / FEED_PAGE_SIZE));
+  const currentPage = Math.min(feedPage, totalPages);
+  const pageStart = (currentPage - 1) * FEED_PAGE_SIZE;
+  const pageItems = feed.slice(pageStart, pageStart + FEED_PAGE_SIZE);
   const counts = useMemo(() => {
     const all = [
       ...audits.map(fromAudit),
@@ -411,7 +420,7 @@ export default function ActivityPage() {
           </p>
         ) : (
           <ol className="relative mt-6 space-y-0 border-l border-border/80 pl-0">
-            {feed.map((item) => {
+            {pageItems.map((item) => {
               const open = expanded === item.id;
               return (
                 <li key={item.id} className="relative pl-10">
@@ -476,27 +485,37 @@ export default function ActivityPage() {
           </ol>
         )}
 
-        {meta.pages > 1 ? (
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+        {feed.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
             <p className="text-xs text-muted">
-              Audit page {meta.page} of {meta.pages} ({meta.total} audit rows)
+              {pageStart + 1}–{Math.min(pageStart + FEED_PAGE_SIZE, feed.length)}{" "}
+              of {feed.length}
             </p>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                onClick={() => {
+                  setExpanded(null);
+                  setFeedPage((p) => Math.max(1, p - 1));
+                }}
               >
                 Prev
               </Button>
+              <span className="min-w-[4.5rem] text-center text-xs font-semibold text-muted">
+                {currentPage} / {totalPages}
+              </span>
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
-                disabled={page >= meta.pages}
-                onClick={() => setPage((p) => p + 1)}
+                disabled={currentPage >= totalPages}
+                onClick={() => {
+                  setExpanded(null);
+                  setFeedPage((p) => Math.min(totalPages, p + 1));
+                }}
               >
                 Next
               </Button>
