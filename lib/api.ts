@@ -655,6 +655,55 @@ export type QueueRow = {
   site?: { id: string; name: string; url?: string };
 };
 
+export type AuditLogRow = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  ip?: string | null;
+  createdAt: string;
+  user?: { id: string; name: string; email: string } | null;
+};
+
+export type NotificationRow = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  readAt?: string | null;
+  meta?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export const auditLogsApi = {
+  list: (query?: {
+    page?: string;
+    limit?: string;
+    action?: string;
+    entity?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v) qs.set(k, v);
+      });
+    }
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return api<{
+      data: AuditLogRow[];
+      meta: { total: number; page: number; limit: number; pages: number };
+    }>(`/audit-logs${suffix}`);
+  },
+};
+
+export const notificationsApi = {
+  list: (unreadOnly = false) =>
+    api<{ data: NotificationRow[] }>(
+      `/notifications${unreadOnly ? "?unread=true" : ""}`,
+    ),
+};
+
 export type DashboardStats = {
   stats: { label: string; value: string }[];
   recentImports: { id: string; label: string; status: string }[];
