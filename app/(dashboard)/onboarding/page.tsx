@@ -190,7 +190,7 @@ export default function OnboardingPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight sm:text-3xl">
           Welcome to SheetPress
         </h1>
         <p className="mt-1 text-sm text-muted">

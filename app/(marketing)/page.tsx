@@ -110,10 +110,10 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:pt-20">
           <div className="animate-fade-up">
-            <p className="font-[family-name:var(--font-sora)] text-4xl font-semibold tracking-tight text-brand sm:text-5xl">
+            <p className="font-[family-name:var(--font-outfit)] text-4xl font-semibold tracking-tight text-brand sm:text-5xl">
               SheetPress
             </p>
-            <h1 className="mt-4 font-[family-name:var(--font-sora)] text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
+            <h1 className="mt-4 font-[family-name:var(--font-outfit)] text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
               Publish WordPress Articles Automatically From a Spreadsheet
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted">
@@ -368,7 +368,7 @@ export default function HomePage() {
                 <p className="text-sm font-semibold uppercase tracking-wide opacity-80">
                   {plan.name}
                 </p>
-                <p className="mt-3 font-[family-name:var(--font-sora)] text-4xl font-semibold">
+                <p className="mt-3 font-[family-name:var(--font-outfit)] text-4xl font-semibold">
                   ${plan.price.monthly}
                   <span className="text-base font-medium opacity-70">/mo</span>
                 </p>
@@ -456,7 +456,7 @@ export default function HomePage() {
 
       <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
-          <h2 className="font-[family-name:var(--font-sora)] text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+          <h2 className="font-[family-name:var(--font-outfit)] text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Ready to automate your WordPress publishing?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-muted">

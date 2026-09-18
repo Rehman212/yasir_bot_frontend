@@ -167,7 +167,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
+        <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight">
           Admin
         </h1>
         <p className="mt-1 text-sm text-muted">

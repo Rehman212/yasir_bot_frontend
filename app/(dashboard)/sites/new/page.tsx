@@ -93,7 +93,7 @@ export default function NewSitePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
+        <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight">
           Add website
         </h1>
         <p className="mt-1 text-sm text-muted">

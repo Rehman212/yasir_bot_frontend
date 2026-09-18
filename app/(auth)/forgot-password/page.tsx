@@ -31,7 +31,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="rounded-2xl border border-border bg-white p-6 shadow-[var(--shadow-md)] sm:p-8">
-      <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
+      <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight">
         Forgot password
       </h1>
       <p className="mt-2 text-sm text-muted">

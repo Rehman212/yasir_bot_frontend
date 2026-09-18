@@ -97,7 +97,7 @@ export default function DashboardPage() {
               <Sparkles className="h-3.5 w-3.5 text-accent" />
               Publishing control center
             </div>
-            <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight sm:text-3xl">
               Overview
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-slate-300 sm:text-[15px]">
@@ -153,7 +153,7 @@ export default function DashboardPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                     {stat.label}
                   </p>
-                  <p className="mt-2 font-[family-name:var(--font-sora)] text-3xl font-semibold tracking-tight text-foreground">
+                  <p className="mt-2 font-[family-name:var(--font-outfit)] text-3xl font-semibold tracking-tight text-foreground">
                     {stat.value}
                   </p>
                   <p className="mt-1 text-xs text-muted">{meta.hint}</p>
@@ -176,7 +176,7 @@ export default function DashboardPage() {
       <div className="grid gap-5 xl:grid-cols-2">
         <Card className="overflow-hidden border-border/80 p-0 shadow-[var(--shadow-sm)]">
           <div className="flex items-center justify-between border-b border-border/70 bg-surface-muted/60 px-5 py-4">
-            <h2 className="font-[family-name:var(--font-sora)] text-sm font-semibold tracking-tight">
+            <h2 className="font-[family-name:var(--font-outfit)] text-sm font-semibold tracking-tight">
               Recent imports
             </h2>
             <Link
@@ -204,7 +204,7 @@ export default function DashboardPage() {
 
         <Card className="overflow-hidden border-border/80 p-0">
           <div className="flex items-center justify-between border-b border-border/70 bg-surface-muted/60 px-5 py-4">
-            <h2 className="font-[family-name:var(--font-sora)] text-sm font-semibold tracking-tight">
+            <h2 className="font-[family-name:var(--font-outfit)] text-sm font-semibold tracking-tight">
               Upcoming scheduled
             </h2>
             <Link
@@ -244,7 +244,7 @@ export default function DashboardPage() {
 
         <Card className="overflow-hidden border-border/80 p-0">
           <div className="flex items-center justify-between border-b border-border/70 bg-surface-muted/60 px-5 py-4">
-            <h2 className="font-[family-name:var(--font-sora)] text-sm font-semibold tracking-tight">
+            <h2 className="font-[family-name:var(--font-outfit)] text-sm font-semibold tracking-tight">
               Recent activity
             </h2>
             <Link
@@ -294,7 +294,7 @@ export default function DashboardPage() {
               <AlertTriangle className="h-5 w-5" />
             </span>
             <div className="flex-1">
-              <h2 className="font-[family-name:var(--font-sora)] text-sm font-semibold tracking-tight text-foreground">
+              <h2 className="font-[family-name:var(--font-outfit)] text-sm font-semibold tracking-tight text-foreground">
                 Failed articles needing attention
               </h2>
               <p className="mt-1.5 text-sm leading-relaxed text-muted">

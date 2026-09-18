@@ -11,7 +11,7 @@ export default function SubscriptionPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-sora)] text-2xl font-semibold tracking-tight">
+        <h1 className="font-[family-name:var(--font-outfit)] text-2xl font-semibold tracking-tight">
           Subscription
         </h1>
         <p className="mt-1 text-sm text-muted">
@@ -24,7 +24,7 @@ export default function SubscriptionPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-brand">
             Current plan
           </p>
-          <h2 className="mt-2 font-[family-name:var(--font-sora)] text-3xl font-semibold">
+          <h2 className="mt-2 font-[family-name:var(--font-outfit)] text-3xl font-semibold">
             {current.name}
           </h2>
           <p className="mt-2 text-sm text-muted">{current.description}</p>

@@ -61,7 +61,7 @@ export function SoftwarePromoPopup() {
         </p>
         <h2
           id="sv-promo-title"
-          className="mt-2 font-[family-name:var(--font-sora)] text-xl font-semibold tracking-tight text-foreground"
+          className="mt-2 font-[family-name:var(--font-outfit)] text-xl font-semibold tracking-tight text-foreground"
         >
           Need software like this for your business?
         </h2>

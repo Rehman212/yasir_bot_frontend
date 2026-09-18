@@ -58,7 +58,7 @@ export default function PricingPage() {
                 <p className="text-sm font-semibold uppercase tracking-wide opacity-80">
                   {plan.name}
                 </p>
-                <p className="mt-3 font-[family-name:var(--font-sora)] text-4xl font-semibold">
+                <p className="mt-3 font-[family-name:var(--font-outfit)] text-4xl font-semibold">
                   ${price}
                   <span className="text-base font-medium opacity-70">/mo</span>
                 </p>

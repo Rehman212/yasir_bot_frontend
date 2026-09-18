@@ -14,7 +14,7 @@ export default function AuthLayout({
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-white shadow-sm">
             <FileSpreadsheet className="h-5 w-5" />
           </span>
-          <span className="font-[family-name:var(--font-sora)] text-xl font-semibold tracking-tight">
+          <span className="font-[family-name:var(--font-outfit)] text-xl font-semibold tracking-tight">
             {brand.name}
           </span>
         </Link>

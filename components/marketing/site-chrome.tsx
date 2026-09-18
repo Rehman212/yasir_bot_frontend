@@ -20,7 +20,7 @@ export function MarketingHeader() {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white shadow-sm">
             <FileSpreadsheet className="h-5 w-5" />
           </span>
-          <span className="font-[family-name:var(--font-sora)] text-lg font-semibold tracking-tight text-foreground">
+          <span className="font-[family-name:var(--font-outfit)] text-lg font-semibold tracking-tight text-foreground">
             {brand.name}
           </span>
         </Link>
@@ -103,7 +103,7 @@ export function MarketingFooter() {
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white">
               <FileSpreadsheet className="h-5 w-5" />
             </span>
-            <span className="font-[family-name:var(--font-sora)] text-lg font-semibold">
+            <span className="font-[family-name:var(--font-outfit)] text-lg font-semibold">
               {brand.name}
             </span>
           </Link>

@@ -23,9 +23,12 @@ import {
   CreditCard,
   Layers3,
   Shield,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 import { brand } from "@/lib/brand";
 import { Badge } from "@/components/ui/primitives";
+import { Tooltip } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
   authApi,
@@ -36,6 +39,10 @@ import {
   usersApi,
   type UserProfile,
 } from "@/lib/api";
+
+const PIN_KEY = "sp_sidebar_pinned";
+const RAIL = "4.75rem";
+const WIDE = "17rem";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, feature: null },
@@ -55,8 +62,20 @@ const nav = [
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  const expanded = pinned || hovered;
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(PIN_KEY) === "1") setPinned(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     if (!getAccessToken()) return;
@@ -93,6 +112,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     [isAdmin, deniedList],
   );
 
+  function togglePin() {
+    setPinned((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(PIN_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
   async function handleLogout() {
     try {
       await authApi.logout();
@@ -102,62 +133,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const NavLinks = ({ dark = false }: { dark?: boolean }) => (
-    <nav className="space-y-0.5 px-3">
-      <p
-        className={cn(
-          "mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em]",
-          dark ? "text-slate-500" : "text-muted",
-        )}
-      >
-        Workspace
-      </p>
-      {visibleNav.map((item) => {
-        const active =
-          pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setOpen(false)}
-            className={cn(
-              "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
-              dark
-                ? active
-                  ? "bg-gradient-to-r from-[#0b3d91] to-[#087990] text-white shadow-lg shadow-cyan-500/10"
-                  : "text-slate-400 hover:bg-white/5 hover:text-white"
-                : active
-                  ? "bg-brand text-white shadow-md shadow-brand/20"
-                  : "text-muted hover:bg-surface-muted hover:text-foreground",
-            )}
-          >
-            <item.icon
-              className={cn(
-                "h-4 w-4 shrink-0 transition",
-                dark && !active && "text-slate-500 group-hover:text-accent",
-                active && "text-white",
-              )}
-            />
-            {item.label}
-          </Link>
-        );
-      })}
-      <button
-        type="button"
-        onClick={handleLogout}
-        className={cn(
-          "mt-6 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-          dark
-            ? "text-slate-500 hover:bg-red-500/10 hover:text-red-300"
-            : "text-muted hover:bg-danger-soft hover:text-danger",
-        )}
-      >
-        <LogOut className="h-4 w-4" />
-        Logout
-      </button>
-    </nav>
-  );
-
   const initials = (profile?.name || "U")
     .split(" ")
     .map((p) => p[0])
@@ -165,73 +140,215 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     .slice(0, 2)
     .toUpperCase();
 
+  function NavItem({
+    item,
+    showLabel,
+    withTooltip,
+  }: {
+    item: (typeof nav)[number];
+    showLabel: boolean;
+    withTooltip: boolean;
+  }) {
+    const active =
+      pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const link = (
+      <Link
+        href={item.href}
+        onClick={() => setMobileOpen(false)}
+        className={cn(
+          "group flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200",
+          showLabel ? "gap-3 px-3" : "justify-center px-0",
+          active
+            ? "bg-gradient-to-r from-[#0b3d91] to-[#087990] text-white shadow-lg shadow-cyan-500/10"
+            : "text-slate-400 hover:bg-white/5 hover:text-white",
+        )}
+      >
+        <item.icon
+          className={cn(
+            "h-[18px] w-[18px] shrink-0 transition",
+            !active && "text-slate-500 group-hover:text-accent",
+            active && "text-white",
+          )}
+        />
+        {showLabel ? (
+          <span className="truncate">{item.label}</span>
+        ) : (
+          <span className="sr-only">{item.label}</span>
+        )}
+      </Link>
+    );
+
+    if (!withTooltip) return link;
+    return (
+      <Tooltip label={item.label} disabled={showLabel}>
+        {link}
+      </Tooltip>
+    );
+  }
+
+  const DesktopNav = ({ showLabel }: { showLabel: boolean }) => (
+    <nav className={cn("space-y-0.5", showLabel ? "px-3" : "px-2")}>
+      {showLabel ? (
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          Workspace
+        </p>
+      ) : (
+        <div className="mb-2 h-4" />
+      )}
+      {visibleNav.map((item) => (
+        <NavItem
+          key={item.href}
+          item={item}
+          showLabel={showLabel}
+          withTooltip={!showLabel}
+        />
+      ))}
+      {showLabel ? (
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-6 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+          Logout
+        </button>
+      ) : (
+        <Tooltip label="Logout">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-6 flex w-full items-center justify-center rounded-lg py-2.5 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300"
+            aria-label="Logout"
+          >
+            <LogOut className="h-[18px] w-[18px]" />
+          </button>
+        </Tooltip>
+      )}
+    </nav>
+  );
+
   return (
-    <div className="min-h-screen bg-dashboard">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17rem] flex-col bg-[var(--sidebar)] lg:flex">
-        <div className="flex h-16 items-center gap-3 border-b border-white/5 px-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-accent text-white shadow-md shadow-cyan-500/20">
-            <FileSpreadsheet className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+    <div className="min-h-screen bg-dashboard font-[family-name:var(--font-outfit)]">
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 hidden flex-col bg-[var(--sidebar)] transition-[width] duration-200 ease-out lg:flex",
+          expanded ? "shadow-2xl shadow-black/40" : "",
+        )}
+        style={{ width: expanded ? WIDE : RAIL }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-white/5",
+            expanded ? "gap-3 px-4" : "justify-center px-2",
+          )}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-accent text-white shadow-md shadow-cyan-500/20">
+            <FileSpreadsheet className="h-[18px] w-[18px]" />
           </span>
-          <div className="min-w-0">
-            <p className="font-[family-name:var(--font-sora)] text-[15px] font-semibold tracking-tight text-white">
-              {brand.name}
-            </p>
-            <p className="truncate text-[11px] text-slate-500">Publish OS</p>
+          {expanded ? (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[15px] font-semibold tracking-tight text-white">
+                {brand.name}
+              </p>
+              <p className="truncate text-[11px] text-slate-500">Publish OS</p>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-4">
+          <DesktopNav showLabel={expanded} />
+        </div>
+
+        {expanded ? (
+          <div className="border-t border-white/5 p-3">
+            <div className="rounded-xl bg-[var(--sidebar-elevated)] p-3 ring-1 ring-white/5">
+              <p className="text-[11px] font-medium text-slate-400">Signed in</p>
+              <p className="mt-0.5 truncate text-sm font-semibold text-white">
+                {profile?.name || "Loading…"}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {profile?.email || "—"}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex-1 overflow-y-auto py-5">
-          <NavLinks dark />
-        </div>
-        <div className="border-t border-white/5 p-4">
-          <div className="rounded-xl bg-[var(--sidebar-elevated)] p-3 ring-1 ring-white/5">
-            <p className="text-[11px] font-medium text-slate-400">Signed in</p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-white">
-              {profile?.name || "Loading…"}
-            </p>
-            <p className="truncate text-xs text-slate-500">
-              {profile?.email || "—"}
-            </p>
+        ) : (
+          <div className="border-t border-white/5 p-2">
+            <Tooltip label={profile?.name || "Account"}>
+              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand to-accent text-[10px] font-bold text-white">
+                {initials}
+              </div>
+            </Tooltip>
           </div>
-        </div>
+        )}
       </aside>
 
-      {open ? (
+      {/* Mobile drawer */}
+      {mobileOpen ? (
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
+            onClick={() => setMobileOpen(false)}
             aria-label="Close sidebar"
           />
           <aside className="absolute inset-y-0 left-0 flex w-[18rem] flex-col bg-[var(--sidebar)] shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b border-white/5 px-4">
-              <span className="font-[family-name:var(--font-sora)] font-semibold text-white">
-                {brand.name}
-              </span>
+              <span className="font-semibold text-white">{brand.name}</span>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => setMobileOpen(false)}
                 className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto py-4">
-              <NavLinks dark />
+              <DesktopNav showLabel />
             </div>
           </aside>
         </div>
       ) : null}
 
-      <div className="lg:pl-[17rem]">
+      <div
+        className={cn(
+          "min-h-screen transition-[padding-left] duration-200 ease-out",
+          pinned ? "lg:pl-[17rem]" : "lg:pl-[4.75rem]",
+        )}
+      >
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/80 bg-[var(--topbar)] px-4 backdrop-blur-xl sm:px-6">
           <button
             type="button"
             className="rounded-xl p-2 text-foreground hover:bg-surface-muted lg:hidden"
-            onClick={() => setOpen(true)}
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </button>
+
+          <Tooltip label={pinned ? "Collapse sidebar" : "Pin sidebar open"} side="bottom">
+            <button
+              type="button"
+              onClick={togglePin}
+              className={cn(
+                "hidden rounded-xl border p-2 shadow-sm transition lg:inline-flex",
+                pinned
+                  ? "border-accent/40 bg-accent-soft text-brand"
+                  : "border-border/80 bg-white text-muted hover:border-accent/40 hover:text-foreground",
+              )}
+              aria-label={pinned ? "Unpin sidebar" : "Pin sidebar"}
+              aria-pressed={pinned}
+            >
+              {pinned ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeft className="h-4 w-4" />
+              )}
+            </button>
+          </Tooltip>
+
           <div className="relative hidden max-w-lg flex-1 md:block">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
