@@ -229,6 +229,59 @@ export const usersApi = {
     }),
 };
 
+export type SubscriptionStatus = {
+  id: string;
+  plan: string;
+  status: string;
+  articleLimit: number;
+  websiteLimit: number;
+  articlesUsed: number;
+  periodStart?: string;
+  periodEnd?: string;
+  usage: {
+    articlesUsed: number;
+    articleLimit: number;
+    websitesUsed: number;
+    websiteLimit: number;
+  };
+};
+
+export type BillingRow = {
+  id: string;
+  amount: number;
+  currency: string;
+  description?: string | null;
+  paidAt: string;
+};
+
+export const subscriptionsApi = {
+  status: () => api<{ data: SubscriptionStatus }>("/subscriptions/status"),
+  usage: () =>
+    api<{
+      data: {
+        allowed: boolean;
+        articles: { used: number; limit: number };
+        websites: { used: number; limit: number };
+      };
+    }>("/subscriptions/usage"),
+  billing: () => api<{ data: BillingRow[] }>("/subscriptions/billing"),
+  plans: () =>
+    api<{
+      data: Array<{
+        plan: string;
+        articleLimit: number;
+        websiteLimit: number;
+        price: number;
+        currency: string;
+      }>;
+    }>("/subscriptions/plans"),
+  changePlan: (plan: string) =>
+    api<{ data: SubscriptionStatus }>("/subscriptions/change-plan", {
+      method: "POST",
+      body: { plan },
+    }),
+};
+
 export const APP_FEATURES = [
   "sites",
   "import",
