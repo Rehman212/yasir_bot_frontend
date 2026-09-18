@@ -483,8 +483,39 @@ export type MediaAsset = {
 
 export const queueApi = {
   list: () => api<{ data: QueueRow[] }>("/queue"),
-  pause: () => api("/queue/pause", { method: "POST" }),
-  resume: () => api("/queue/resume", { method: "POST" }),
+  enqueue: (body: {
+    articleIds: string[];
+    scheduledAt?: string;
+    timezone?: string;
+    delayMs?: number;
+  }) =>
+    api<{ data: { jobs: Array<Record<string, unknown>> } }>("/queue/enqueue", {
+      method: "POST",
+      body,
+    }),
+  enqueueByTitles: (body: {
+    siteId: string;
+    titles: string[];
+    scheduledAt: string;
+    timezone?: string;
+    intervalMinutes?: number;
+    createMissing?: boolean;
+  }) =>
+    api<{
+      data: {
+        siteName: string;
+        scheduledAt: string;
+        resolved: Array<{
+          title: string;
+          articleId?: string;
+          created?: boolean;
+          error?: string;
+        }>;
+        jobs: Array<Record<string, unknown>>;
+      };
+    }>("/queue/enqueue-by-titles", { method: "POST", body }),
+  pause: () => api("/queue/pause-all", { method: "POST" }),
+  resume: () => api("/queue/resume-all", { method: "POST" }),
   retry: (id: string) => api(`/queue/${id}/retry`, { method: "POST" }),
   cancel: (id: string) => api(`/queue/${id}/cancel`, { method: "POST" }),
 };
@@ -599,11 +630,24 @@ export type ArticleDetail = ArticleRow & {
 
 export type QueueRow = {
   id: string;
+  articleId: string;
+  siteId: string;
   status: string;
   progress: number;
+  attempts?: number;
   error?: string | null;
-  article?: { title: string };
-  site?: { name: string };
+  scheduledAt?: string | null;
+  timezone?: string | null;
+  createdAt?: string;
+  article?: {
+    id: string;
+    title: string;
+    status: string;
+    publishAt?: string | null;
+    wpUrl?: string | null;
+    errorMessage?: string | null;
+  };
+  site?: { id: string; name: string; url?: string };
 };
 
 export type DashboardStats = {
